@@ -1,0 +1,263 @@
+# Hooker — Official Rules (Engine Edition)
+
+> This edition reformats and clarifies the rules into **fully numbered**, unambiguous, implementation-ready steps. It reconciles the original v3.0 rules with rigorous engine constraints and explicit edge-case handling. Where the original text is already authoritative, citations appear inline. Minor clarifications are integrated to remove ambiguity for a digital engine.
+
+---
+
+## 1. Scope & Audience
+
+1.1. These rules specify the **complete, deterministic** logic for playing **Hooker** with 4 human players.
+1.2. They are written for **software engineers** implementing a backend game engine (no UI/network assumptions).
+1.3. All normative requirements use **MUST / MUST NOT / SHOULD** language for precision.
+
+---
+
+## 2. Core Objects & Terminology
+
+2.1. **Players & Teams**
+2.1.1. There are exactly **4 players**. 
+2.1.2. Each **Game** is 2v2. Partnerships **rotate across three Games** in a Match (see §5). 
+
+2.2. **Deck**
+2.2.1. The deck has **24 cards**: ranks **9, 10, J, Q, K, A** in each suit **♣ ♦ ♥ ♠**. 
+2.2.2. Rank values (for comparisons within a suit): **9 < 10 < J < Q < K < A**. 
+
+2.3. **Trump & Special Cards**
+2.3.1. **Trump Suit**: chosen once per Hand by the **Hand’s Dealer/Leader** (see §8.4). 
+2.3.2. **Nassih**: **Jack of trump suit**; **highest** card overall. 
+2.3.3. **Nassih Ahh**: **Jack of the same-color suit** as trump; **second-highest** card overall. Example: Trump ♠ ⇒ Nassih = J♠, Nassih Ahh = J♣. 
+2.3.4. **Round Shalit**: the **led suit** of a Trick. All players **must follow** the led suit **if able**. 
+
+2.4. **Effective Suit (for Follow-Suit validation)**
+2.4.1. For **following suit**, a card’s **effective suit** is its own printed suit **except**:
+2.4.1.1. **Nassih Ahh**: effective suit = its **printed suit** (i.e., it **does not** count as a trump for follow-suit). 
+2.4.1.2. **Nassih**: effective suit = **trump**. 
+2.4.2. For **winning** a Trick, **Nassih** and **Nassih Ahh** rank **above** all other cards (see §10.3). 
+
+---
+
+## 3. Objective & Scoring Overview
+
+3.1. **Hand**: consists of **5 Tricks**; win **more Tricks** than opponents. 
+3.2. **Game**: first team to **reach ≥ 10 points** wins; points are awarded **per Hand** by Tricks won:
+3.2.1. **3 Tricks** ⇒ **1 point**; **4 Tricks** ⇒ **2 points**; **5 Tricks** (sweep) ⇒ **3 points**. 
+3.2.2. Exactly **one** team scores per Hand (because 5 is odd).
+3.2.3. A Game **ends immediately** when a team reaches **≥ 10**. 
+3.3. **Match**: consists of **3 Games** (with rotating partners). Titles: **Talson** (won all 3), **Usha** (lost all 3). 
+
+---
+
+## 4. Seating & Turn Order
+
+4.1. **Partners Must Sit Opposite** each other. 
+4.2. **Seating per Game** (clockwise examples):
+4.2.1. **Game 1**: A, C, B, D (A+B vs C+D). 
+4.2.2. **Game 2**: A, B, C, D (A+C vs B+D). 
+4.2.3. **Game 3**: A, B, D, C (A+D vs B+C). 
+4.3. **Clockwise** is the only direction of play.
+4.4. **`nextPlayer(p)`** is defined as the next seat clockwise. 
+
+---
+
+## 5. Match Structure
+
+5.1. A **Match** has exactly **3 Games**, with **rotating teams**:
+5.1.1. Game 1: **A+B vs C+D**.
+5.1.2. Game 2: **A+C vs B+D**.
+5.1.3. Game 3: **A+D vs B+C**. 
+5.2. After 3 Games, compute honors (**Talson/Usha**) from per-player Game wins. 
+
+---
+
+## 6. Game Setup (Per Game)
+
+6.1. Initialize **Game Scores** to **0–0**.
+6.2. Arrange **Seating** so **partners are opposite** (§4.2). 
+6.3. Determine **first Hand’s Dealer/Leader** using the **Ace method** (§7.1). 
+
+---
+
+## 7. Dealer Determination (First Hand of a Game)
+
+7.1. **Ace Method**
+7.1.1. **Shuffle deck**.
+7.1.2. **Deal face-up** clockwise until an **Ace** appears.
+7.1.3. Player dealt the **first Ace** becomes the Hand’s **Dealer** **and** the Hand’s **Leader** (for first Trick) **and** the **Trump Declarer**. 
+7.2. For **subsequent Hands** in the same Game, the **Dealer** rotates **clockwise**. The Dealer of a Hand is always its **Trump Declarer** (see §8.4) and **first Trick Leader** (see §9.1). 
+
+---
+
+## 8. Hand Setup & Dealing
+
+8.1. **Shuffle** the 24-card deck (Fisher–Yates is acceptable). 
+8.2. **Deal** exactly **5 cards** to each player, one at a time, starting with the player **to the Dealer’s left**, going **clockwise**. 
+8.3. Place the remaining **4 cards** face-down as the **Kitty**. 
+8.4. This Hand’s **Trump Declarer is the Dealer** (determined in §7.1 / rotated in §7.2). The declarer **will** pick trump in §11. 
+
+---
+
+## 9. Kitty Exchange (Full Rotation with Boomerang)
+
+9.1. **Expose** the **top** card of the Kitty face-up. Offer it to the player **left of the Dealer** (initial offeree). 
+9.2. On a player’s turn to decide, they must choose:
+9.2.1. **ACCEPT**: take the exposed Kitty card into hand (hand size becomes 6) → proceed to **Discard** (§10).
+9.2.2. **PASS**: do not take; offer moves to the **next** player clockwise. 
+9.3. If a player passes, the offer proceeds **clockwise to the next player**, **including the Dealer**.
+9.4. If **all four players** Pass (i.e., a full clockwise rotation completes), the offer **boomerangs** back to the **initial offeree** (left of Dealer), who is then **forced to ACCEPT**. (This clarifies forced-accept timing while honoring the rule that the forced player is the first offeree.) 
+9.5. **Notes**
+9.5.1. The identity of the **acceptor** is **not used** for turn order or scoring. Turn order is always determined by **Trick leadership** and **clockwise order** (§12.1–§12.2).
+9.5.2. The **Dealer remains the Trump Declarer** (§11), regardless of who accepts the Kitty.
+
+---
+
+## 10. Discard (After Accepting the Kitty)
+
+10.1. **Precondition**: The acceptor’s hand temporarily has **6** cards.
+10.2. The acceptor **MUST discard exactly one card** to the Kitty **that is different from the accepted Kitty card**.
+10.3. The acceptor **MUST** choose the discard from the **other 5 cards** in hand; discarding the just-accepted exposed card is **illegal**.
+10.4. **Validation**:
+10.4.1. If the chosen discard **equals** the accepted Kitty card **or** is not currently in the hand, the engine **rejects** the discard; the player must pick a **legal** discard.
+10.4.2. The engine **MUST NOT** auto-discard or silently replace the card on error.
+10.5. After a valid discard, the acceptor’s hand returns to **5** cards; the Kitty again holds **4** face-down cards.
+
+---
+
+## 11. Trump Declaration (By the Hand’s Dealer)
+
+11.1. After the Discard, the **Dealer** (who is also the Hand’s Trump Declarer) **MUST** declare the **Trump suit**: one of **♣ ♦ ♥ ♠**. 
+11.2. **Trump Metadata**: define
+11.2.1. **Nassih** = **J** of the declared **Trump** suit.
+11.2.2. **Nassih Ahh** = **J** of the **same-color** suit as Trump. 
+11.3. Trump affects **follow-suit validation** (§12.2) and **Trick resolution** (§12.3–§12.4).
+
+---
+
+## 12. Trick Play (Five Tricks per Hand)
+
+12.1. **Trick Count**: There are exactly **5 Tricks** per Hand. 
+12.2. **Leadership**
+12.2.1. **Trick 1** is led by the **Dealer** (the Trump Declarer for this Hand). 
+12.2.2. Each subsequent Trick is led by the **winner of the previous Trick** (then clockwise order applies for play). 
+
+12.3. **Lead**
+12.3.1. The **Leader** plays **one** card from hand; **any** card is legal for the lead (no follow requirement for the lead). 
+12.3.2. The **Round Shalit** (the **led suit**) is set to the **effective suit** of the lead card (see §2.4). 
+
+12.4. **Following Players (clockwise)**
+12.4.1. For each of the remaining three players, in order:
+12.4.1.1. Determine the **led suit** (Round Shalit) as per §12.3.2.
+12.4.1.2. If the player holds **any** card with **effective suit = led suit**, they **MUST** play **one** such card. 
+12.4.1.3. Otherwise, the player **MAY** play **any** card (including trump). 
+12.4.2. **Legality Checks** (engine MUST enforce):
+12.4.2.1. The played card **MUST** be in the player’s current hand. 
+12.4.2.2. If the player can follow suit (by **effective suit**), then the chosen card’s **effective suit** **MUST** equal the led suit; otherwise it is **illegal**. 
+12.4.2.3. **Effective Suit rules** from §2.4 apply: **Nassih Ahh** follows its **printed suit**; **Nassih** is always **trump** for following. 
+
+12.5. **Completing a Trick**
+12.5.1. After **four** cards have been played to the Trick, determine the **winner**:
+12.5.1.1. If **Nassih** is present, the **Nassih** wins the Trick. 
+12.5.1.2. Else if **Nassih Ahh** is present, the **Nassih Ahh** wins the Trick. 
+12.5.1.3. Else if any **other trump** cards are present, the **highest trump** wins (rank: **A > K > Q > 10 > 9**; **J of trump** would already have been the **Nassih** in §12.5.1.1). 
+12.5.1.4. Else the **highest card of the led suit** wins (rank: **A > K > Q > J > 10 > 9**). 
+12.5.1.5. Off-suit, non-trump cards **cannot** win ahead of trump or led-suit cards. 
+12.5.2. The **winner** of the Trick becomes **Leader** for the next Trick (if any). 
+12.5.3. Record the Trick (played cards & winner) in the Hand’s history.
+
+---
+
+## 13. Hand End & Scoring
+
+13.1. After **5 Tricks**, count each team’s **Tricks won**.
+13.2. Award **points** to the team with the **majority** (3 or more) as follows:
+13.2.1. **3 Tricks** ⇒ **1 point**.
+13.2.2. **4 Tricks** ⇒ **2 points**.
+13.2.3. **5 Tricks** ⇒ **3 points**. 
+13.3. The opposing team scores **0** this Hand.
+13.4. **Euchred (label only)**
+13.4.1. If the **Trump Declarer’s team** (the Dealer’s team) won **fewer than 3** Tricks, the Hand is marked **“Euchred”**.
+13.4.2. This label is **purely descriptive** and **does not** alter scoring beyond §13.2. 
+
+---
+
+## 14. Game End & Next Hand
+
+14.1. **Game End Check**: If either team’s cumulative **Game score** reaches **≥ 10**, the **Game ends immediately**. 
+14.2. If **no team** has ≥ 10:
+14.2.1. The **next Hand** begins with the **Dealer** rotating **clockwise** from the previous Hand’s Dealer. 
+14.2.2. Return to **Hand Setup** (§8) and repeat.
+
+---
+
+## 15. Match End & Honors
+
+15.1. After **3 Games**, compute per-player **Game wins** from the Game results.
+15.2. **Talson**: any player with **3** Game wins.
+15.3. **Usha**: any player with **0** Game wins. 
+15.4. The Match is complete.
+
+---
+
+## 16. Engine-Level Invariants & Illegal Actions
+
+16.1. **Card Ownership**: A player **MUST** only play a card currently in their hand. 
+16.2. **Follow-Suit Enforcement**: If a player can follow the **led suit** (by **effective** suit), they **MUST**; otherwise **any** card is legal. 
+16.3. **Nassih Ahh**: follows **printed suit**; may still **win** as second-highest overall (see §12.5). 
+16.4. **Discard After Accept**: the discard **MUST** be a **different** card than the accepted Kitty card; attempts to discard the accepted card are **illegal** (reject and re-prompt).
+16.5. **No Auto-Fallback Discards**: the engine **MUST NOT** pick a discard automatically on error; the player **MUST** make a valid selection.
+16.6. **Kitty Offer Order**: Offer to **all four players** in clockwise order; if all **Pass**, **force** the initial offeree to **Accept** (boomerang). 
+16.7. **Trump Declarer Identity**: The **Dealer** of the Hand is **always** the Trump Declarer, **independent** of who accepted the Kitty. 
+16.8. **Single Scoring Team per Hand**: Because 5 Tricks are played, only one team has ≥ 3 Tricks and scores (§13.2).
+
+---
+
+## 17. Examples (Normative Illustrations)
+
+17.1. **Nassih Ahh Follow-Suit Example**
+17.1.1. Trump = ♠; Nassih = J♠; Nassih Ahh = J♣.
+17.1.2. If **♣** is led and you hold **J♣** (and no other Clubs), you **must** play **J♣** to follow suit, even though it is second-highest **trump** for **winning**. 
+17.2. **No-Trump-in-Trick Example**
+17.2.1. Trump = ♥; Trick led with 9♣; nobody plays trump and several off-suits appear; the **highest Club** wins the Trick. 
+17.3. **Euchred Example**
+17.3.1. Dealer’s team declares trump and wins **2** Tricks; defenders win **3**.
+17.3.2. Defenders score **1** point (3 Tricks); Dealer’s team scores **0**; label the Hand **“Euchred.”** 
+
+---
+
+## 18. Phase Checklist (Turn-by-Turn Summary)
+
+18.1. **Match Setup** → seating & teams rotate per Game (§4, §5).
+18.2. **Game Setup** → game scores 0–0; determine first Dealer via **Ace method** (§6, §7).
+18.3. **Hand Setup** → shuffle; deal 5 to each; Kitty = 4 (§8).
+18.4. **Kitty Exchange** → exposed top Kitty offered **left of Dealer**, then 2nd, 3rd, **Dealer**, then **boomerang forced-accept** on first offeree if all Pass (§9).
+18.5. **Discard** → acceptor discards **one different** card; **no auto-fallback** (§10).
+18.6. **Trump Declaration** → **Dealer** declares suit; set Nassih / Nassih Ahh (§11).
+18.7. **Tricks (×5)** → lead by Dealer (Trick 1), winners lead next; enforce **follow-suit** by **effective suit**; resolve Trick with hierarchy (§12).
+18.8. **Hand Scoring** → map Tricks to points 1/2/3; mark **Euchred** label if declarer’s team < 3 (§13).
+18.9. **Game End Check** → if any team ≥ 10, Game ends immediately; else next Hand with Dealer rotating (§14).
+18.10. **Match End** after 3 Games → compute **Talson / Usha** (§15).
+
+---
+
+## 19. Conformance with Original Sources (Traceability)
+
+19.1. **Players / Teams / Deck**: source confirmation. 
+19.2. **Nassih / Nassih Ahh / Round Shalit**: definitions and effects. 
+19.3. **Seating & Partners Opposite**: seating requirement. 
+19.4. **Dealer Determination & Rotation**: Ace method and left-rotation. 
+19.5. **Deal & Kitty Size**: 5 cards each; Kitty = 4. 
+19.6. **Kitty Offer Mechanics**: offer left-of-Dealer; move clockwise; forced accept boomerang to first offeree (clarified here to complete a full rotation including Dealer). 
+19.7. **Trump Declarer**: Dealer declares trump. 
+19.8. **Follow Suit & Play Order**: must follow suit if able; winner leads next. 
+19.9. **Scoring**: 3→1, 4→2, 5→3; Game to 10; Euchred label only. 
+
+---
+
+### Implementation Notes (non-normative)
+
+A.1. Use `getNextPlayer` for clockwise order. 
+A.2. Enforce card legality with `validateCardPlay` / `getEffectiveSuit`. 
+A.3. Resolve Trick winners with the standard power model: Nassih (1000) > Nassih Ahh (900) > other trump (800+rank) > led-suit (100+rank) > others. 
+A.4. Map Tricks→Points with `calculateScore`; end Game at `checkGameEnd(≥10)`; compute honors via match results. 
+
+---
+
