@@ -142,7 +142,18 @@ export function TableLayout({
           )}
         </div>
 
-        <div className="table-stage-grid">
+        <div className="table-ring">
+          <div className="table-ring-surface">
+            <div className="table-trick">
+              <TrickArea
+                trick={snapshot.currentTrick}
+                nameForSeat={nameForSeat}
+                trump={snapshot.trump}
+                seatingOrder={seatingOrder}
+              />
+            </div>
+          </div>
+
           {seatingOrder.map((seat, index) => {
             const position = POSITIONS[index] ?? 'top'
             const isSelf = seat === playerId
@@ -180,15 +191,6 @@ export function TableLayout({
               </div>
             )
           })}
-
-          <div className="table-trick">
-            <TrickArea
-              trick={snapshot.currentTrick}
-              nameForSeat={nameForSeat}
-              trump={snapshot.trump}
-              seatingOrder={seatingOrder}
-            />
-          </div>
         </div>
 
         <div className="table-aux-info">
