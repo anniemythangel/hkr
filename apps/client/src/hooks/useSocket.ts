@@ -4,11 +4,20 @@ import type { MatchSnapshot, PlayerId } from '@hooker/shared';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
+export type ConsoleActor = {
+  seat: PlayerId | null;
+  name: string;
+};
+
 export type ConsoleEntry = {
   type: 'system' | 'move';
   text: string;
   when: number;
+  actor: ConsoleActor;
+  private?: boolean;
 };
+
+const SYSTEM_ACTOR: ConsoleActor = { seat: null, name: 'System' };
 
 export type ChatMessage = {
   name: string;
@@ -84,12 +93,12 @@ export function useSocket(defaultServerUrl: string) {
       const socket = socketRef.current;
       const join = joinRef.current;
       if (!socket || !join) return;
-      socket.emit('join', { roomId: join.roomId, player: join.seat });
+      socket.emit('join', { roomId: join.roomId, player: join.seat, name: join.name });
       const message =
         reason === 'reconnect'
           ? `Restored seat ${join.seat} in room ${join.roomId}`
           : `Joining room ${join.roomId} as seat ${join.seat}`;
-      appendLog({ type: 'system', text: message, when: Date.now() });
+      appendLog({ type: 'system', text: message, when: Date.now(), actor: SYSTEM_ACTOR });
     },
     [appendLog],
   );
@@ -142,6 +151,7 @@ export function useSocket(defaultServerUrl: string) {
           type: 'system',
           text: wasReconnecting ? 'Reconnected to server' : 'Connected to server',
           when: Date.now(),
+          actor: SYSTEM_ACTOR,
         });
         emitJoin(wasReconnecting ? 'reconnect' : 'initial');
       });
@@ -151,7 +161,7 @@ export function useSocket(defaultServerUrl: string) {
         setSnapshot(null);
         reconnectingRef.current = false;
         if (reason !== 'io client disconnect') {
-          appendLog({ type: 'system', text: 'Disconnected from server', when: Date.now() });
+          appendLog({ type: 'system', text: 'Disconnected from server', when: Date.now(), actor: SYSTEM_ACTOR });
         }
       });
 
@@ -161,7 +171,7 @@ export function useSocket(defaultServerUrl: string) {
 
       socket.on('errorMessage', (message: string) => {
         setError(message);
-        appendLog({ type: 'system', text: message, when: Date.now() });
+        appendLog({ type: 'system', text: message, when: Date.now(), actor: SYSTEM_ACTOR });
       });
 
       socket.on('log', (entry: ConsoleEntry) => {
@@ -178,13 +188,19 @@ export function useSocket(defaultServerUrl: string) {
           type: 'system',
           text: `Reconnecting to server… (attempt ${attempt})`,
           when: Date.now(),
+          actor: SYSTEM_ACTOR,
         });
       });
 
       socket.io.on('connect_error', (err) => {
         setStatus('connecting');
         setError(err.message);
-        appendLog({ type: 'system', text: `Connection error: ${err.message}`, when: Date.now() });
+        appendLog({
+          type: 'system',
+          text: `Connection error: ${err.message}`,
+          when: Date.now(),
+          actor: SYSTEM_ACTOR,
+        });
       });
 
       socket.connect();
@@ -205,7 +221,7 @@ export function useSocket(defaultServerUrl: string) {
     (event: string, payload: unknown) => {
       const socket = socketRef.current;
       if (!socket || status !== 'connected') {
-        appendLog({ type: 'system', text: 'Not connected to server', when: Date.now() });
+        appendLog({ type: 'system', text: 'Not connected to server', when: Date.now(), actor: SYSTEM_ACTOR });
         return;
       }
       socket.emit(event, payload);
@@ -218,7 +234,12 @@ export function useSocket(defaultServerUrl: string) {
       const socket = socketRef.current;
       const join = joinRef.current;
       if (!socket || !join || status !== 'connected') {
-        appendLog({ type: 'system', text: 'Unable to send chat message right now', when: Date.now() });
+        appendLog({
+          type: 'system',
+          text: 'Unable to send chat message right now',
+          when: Date.now(),
+          actor: SYSTEM_ACTOR,
+        });
         return false;
       }
       const trimmed = text.trim();

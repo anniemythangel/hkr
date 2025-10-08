@@ -23,10 +23,17 @@ const io = new Server(httpServer, {
   },
 });
 
+type ActorInfo = {
+  seat: PlayerId | null;
+  name: string;
+};
+
 type LogEntry = {
   type: 'system' | 'move';
   text: string;
   when: number;
+  actor: ActorInfo;
+  private?: boolean;
 };
 
 type ChatEntry = {
@@ -38,12 +45,42 @@ type ChatEntry = {
 const roomState = new Map<string, GameState>();
 const roomLogs = new Map<string, LogEntry[]>();
 const roomChats = new Map<string, ChatEntry[]>();
+const roomRosters = new Map<string, Map<PlayerId, { name: string; socketId: string }>>();
+
+const SYSTEM_ACTOR: ActorInfo = { seat: null, name: 'System' };
+
+function ensureRoster(roomId: string) {
+  let roster = roomRosters.get(roomId);
+  if (!roster) {
+    roster = new Map();
+    roomRosters.set(roomId, roster);
+  }
+  return roster;
+}
+
+function getActorInfo(roomId: string, seat: PlayerId | null | undefined): ActorInfo {
+  if (!seat) {
+    return SYSTEM_ACTOR;
+  }
+  const roster = roomRosters.get(roomId);
+  const name = roster?.get(seat)?.name?.trim();
+  return {
+    seat,
+    name: name && name.length > 0 ? name : seat,
+  };
+}
+
+function formatSuitName(raw: string) {
+  if (!raw) return raw;
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
 
 const joinSchema = z.object({
   roomId: z.string(),
   player: z.custom<PlayerId>((val) => ['A', 'B', 'C', 'D'].includes(String(val)), {
     message: 'Invalid player id',
   }),
+  name: z.string().min(1),
 });
 
 const kittyDecisionSchema = z.object({
@@ -75,8 +112,9 @@ const chatSchema = z.object({
 });
 
 type SocketData = {
-  roomId: string;
-  player: PlayerId;
+  roomId?: string;
+  player?: PlayerId;
+  name?: string;
 };
 
 io.on('connection', (socket) => {
@@ -89,15 +127,19 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const { roomId, player } = parse.data;
+    const { roomId, player, name } = parse.data;
     socket.data.roomId = roomId;
     socket.data.player = player;
+    socket.data.name = name;
     socket.join(roomId);
 
     if (!roomState.has(roomId)) {
       const initial = autoAdvance(createMatch());
       roomState.set(roomId, initial);
     }
+
+    const roster = ensureRoster(roomId);
+    roster.set(player, { name, socketId: socket.id });
 
     const state = roomState.get(roomId)!;
     socket.emit('snapshot', getSnapshot(state, player));
@@ -121,22 +163,25 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const state = roomState.get(socket.data.roomId);
+    const roomId = socket.data.roomId;
+    const seat = socket.data.player;
+    const state = roomState.get(roomId);
     if (!state) return;
-    const result = handleKittyDecision(state, socket.data.player, data.data.accept);
+    const result = handleKittyDecision(state, seat, data.data.accept);
     if (!result.ok) {
       socket.emit('errorMessage', result.error);
       return;
     }
+    const actor = getActorInfo(roomId, seat);
     const logText = data.data.accept
-      ? `${socket.data.player} picked up the kitty`
-      : `${socket.data.player} passed the kitty`;
+      ? `${actor.name} picked up the kitty`
+      : `${actor.name} passed the kitty`;
     const extra =
       !data.data.accept && !state.hand.forcedAccept && result.state.hand.forcedAccept
-        ? ' (forced accept)' 
+        ? ' (forced accept)'
         : '';
-    updateRoomState(socket.data.roomId, state, result.state, {
-      log: { type: 'move', text: `${logText}${extra}`, when: Date.now() },
+    updateRoomState(roomId, state, result.state, {
+      log: { type: 'move', text: `${logText}${extra}`, when: Date.now(), actor },
     });
   });
 
@@ -147,20 +192,34 @@ io.on('connection', (socket) => {
       socket.emit('errorMessage', data.error.message);
       return;
     }
-    const state = roomState.get(socket.data.roomId);
+    const roomId = socket.data.roomId;
+    const seat = socket.data.player;
+    const state = roomState.get(roomId);
     if (!state) return;
-    const result = handleDiscard(state, socket.data.player, data.data.card as any);
+    const result = handleDiscard(state, seat, data.data.card as any);
     if (!result.ok) {
       socket.emit('errorMessage', result.error);
       return;
     }
     const { rank, suit } = data.data.card;
-    updateRoomState(socket.data.roomId, state, result.state, {
-      log: {
-        type: 'move',
-        text: `${socket.data.player} discarded ${formatCard(rank, suit)}`,
-        when: Date.now(),
-      },
+    const actor = getActorInfo(roomId, seat);
+    const now = Date.now();
+    const privateLog: LogEntry = {
+      type: 'move',
+      text: `You discarded ${formatCard(rank, suit)}`,
+      when: now,
+      actor,
+      private: true,
+    };
+    socket.emit('log', privateLog);
+    const publicLog: LogEntry = {
+      type: 'move',
+      text: `${actor.name} discarded a card face-down`,
+      when: now,
+      actor,
+    };
+    updateRoomState(roomId, state, result.state, {
+      log: publicLog,
     });
   });
 
@@ -171,18 +230,23 @@ io.on('connection', (socket) => {
       socket.emit('errorMessage', data.error.message);
       return;
     }
-    const state = roomState.get(socket.data.roomId);
+    const roomId = socket.data.roomId;
+    const seat = socket.data.player;
+    const state = roomState.get(roomId);
     if (!state) return;
-    const result = handleDeclareTrump(state, socket.data.player, data.data.suit as any);
+    const result = handleDeclareTrump(state, seat, data.data.suit as any);
     if (!result.ok) {
       socket.emit('errorMessage', result.error);
       return;
     }
-    updateRoomState(socket.data.roomId, state, result.state, {
+    const actor = getActorInfo(roomId, seat);
+    const suitName = formatSuitName(data.data.suit);
+    updateRoomState(roomId, state, result.state, {
       log: {
         type: 'move',
-        text: `${socket.data.player} declared ${data.data.suit} as trump`,
+        text: `${actor.name} declared ${suitName} as trump`,
         when: Date.now(),
+        actor,
       },
     });
   });
@@ -194,19 +258,23 @@ io.on('connection', (socket) => {
       socket.emit('errorMessage', data.error.message);
       return;
     }
-    const state = roomState.get(socket.data.roomId);
+    const roomId = socket.data.roomId;
+    const seat = socket.data.player;
+    const state = roomState.get(roomId);
     if (!state) return;
-    const result = handlePlayCard(state, socket.data.player, data.data.card as any);
+    const result = handlePlayCard(state, seat, data.data.card as any);
     if (!result.ok) {
       socket.emit('errorMessage', result.error);
       return;
     }
     const { rank, suit } = data.data.card;
-    updateRoomState(socket.data.roomId, state, result.state, {
+    const actor = getActorInfo(roomId, seat);
+    updateRoomState(roomId, state, result.state, {
       log: {
         type: 'move',
-        text: `${socket.data.player} played ${formatCard(rank, suit)}`,
+        text: `${actor.name} played ${formatCard(rank, suit)}`,
         when: Date.now(),
+        actor,
       },
     });
   });
@@ -230,8 +298,18 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    if (!socket.data.roomId || !socket.data.player) return;
-    socket.leave(socket.data.roomId);
+    const { roomId, player } = socket.data;
+    if (!roomId || !player) return;
+    socket.leave(roomId);
+    const roster = roomRosters.get(roomId);
+    if (!roster) return;
+    const entry = roster.get(player);
+    if (entry && entry.socketId === socket.id) {
+      roster.delete(player);
+      if (roster.size === 0) {
+        roomRosters.delete(roomId);
+      }
+    }
   });
 });
 
@@ -255,11 +333,10 @@ function updateRoomState(
   const advanced = autoAdvance(updated);
   roomState.set(roomId, advanced);
   broadcastSnapshot(roomId, advanced);
-  const logs = collectLogs(previous, updated, advanced, options.log);
+  const logs = collectLogs(roomId, previous, updated, advanced, options.log);
   if (logs.length > 0) {
     for (const entry of logs) {
-      io.to(roomId).emit('log', entry);
-      appendLog(roomId, entry);
+      emitRoomLog(roomId, entry);
     }
   }
 }
@@ -277,6 +354,7 @@ function broadcastSnapshot(roomId: string, state: GameState) {
 }
 
 function collectLogs(
+  roomId: string,
   previous: GameState,
   updated: GameState,
   advanced: GameState,
@@ -289,10 +367,12 @@ function collectLogs(
 
   if (updated.hand.completedTricks.length > previous.hand.completedTricks.length) {
     const trick = updated.hand.completedTricks[updated.hand.completedTricks.length - 1];
+    const winnerActor = getActorInfo(roomId, trick.winner ?? null);
     entries.push({
       type: 'system',
-      text: `Trick ${updated.hand.completedTricks.length} won by ${trick.winner}`,
+      text: `Trick ${updated.hand.completedTricks.length} won by ${winnerActor.name}`,
       when: Date.now(),
+      actor: winnerActor,
     });
   }
 
@@ -308,6 +388,7 @@ function collectLogs(
         type: 'system',
         text: `Game over — ${latest.winner} wins ${latest.scores.NorthSouth}-${latest.scores.EastWest}`,
         when: Date.now(),
+        actor: SYSTEM_ACTOR,
       });
     }
   }
@@ -321,7 +402,13 @@ function handSummaryLog(summary: HandScoreSummary, scores: GameState['scores']):
     type: 'system',
     text: `Hand scored — ${summary.winningTeam} +${summary.points} (score ${teamScores})`,
     when: Date.now(),
+    actor: SYSTEM_ACTOR,
   };
+}
+
+function emitRoomLog(roomId: string, entry: LogEntry) {
+  io.to(roomId).emit('log', entry);
+  appendLog(roomId, entry);
 }
 
 function appendLog(roomId: string, entry: LogEntry) {
