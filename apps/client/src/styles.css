@@ -459,12 +459,35 @@ button:disabled {
   animation: fade-in 0.25s ease;
 }
 
+.log-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .log-entry-move .log-text {
   color: rgba(148, 197, 255, 0.95);
 }
 
 .log-entry-system .log-text {
   color: rgba(226, 232, 240, 0.85);
+}
+
+.log-actor {
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.log-private {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(251, 191, 36, 0.85);
+}
+
+.log-entry-private .log-text {
+  color: rgba(251, 191, 36, 0.9);
 }
 
 .log-time,

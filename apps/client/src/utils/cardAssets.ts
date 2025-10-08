@@ -1,28 +1,34 @@
 // apps/client/src/utils/cardAssets.ts
 import type { Card, Suit } from '@hooker/shared';
 
-function suitToLetter(suit: Suit): 'S' | 'H' | 'D' | 'C' {
-  const s = String(suit).toLowerCase();
-  if (s.startsWith('s')) return 'S';
-  if (s.startsWith('h')) return 'H';
-  if (s.startsWith('d')) return 'D';
-  return 'C';
-}
+const suitLetter: Record<'S' | 'H' | 'D' | 'C', 'S' | 'H' | 'D' | 'C'> = {
+  S: 'S',
+  H: 'H',
+  D: 'D',
+  C: 'C',
+};
 
-export function suitFull(suit: Suit): 'Spades' | 'Hearts' | 'Diamonds' | 'Clubs' {
-  const s = String(suit).toLowerCase();
-  if (s.startsWith('s')) return 'Spades';
-  if (s.startsWith('h')) return 'Hearts';
-  if (s.startsWith('d')) return 'Diamonds';
-  return 'Clubs';
-}
+const rankToAsset: Record<Card['rank'], 'A' | 'K' | 'Q' | 'J' | 'T' | '9'> = {
+  A: 'A',
+  K: 'K',
+  Q: 'Q',
+  J: 'J',
+  '10': 'T',
+  '9': '9',
+};
 
-function rankToAsset(rank: Card['rank']): 'A'|'K'|'Q'|'J'|'T'|'9' {
-  // Your SVGs use "T" for tens
-  return rank === '10' ? 'T' : (rank as any); // 'A','K','Q','J','9'
+const suitFullLabel: Record<Suit, 'Spades' | 'Hearts' | 'Diamonds' | 'Clubs'> = {
+  spades: 'Spades',
+  hearts: 'Hearts',
+  diamonds: 'Diamonds',
+  clubs: 'Clubs',
+};
+
+export function suitFull(suit: Suit) {
+  return suitFullLabel[suit];
 }
 
 export function cardAssetUrl(card: Card) {
-  // Served from /public/cards -> URL path starts at /cards
-  return `/cards/${rankToAsset(card.rank)}${suitToLetter(card.suit)}.svg`;
+  const suitKey = card.suit.charAt(0).toUpperCase() as keyof typeof suitLetter;
+  return `/cards/${rankToAsset[card.rank]}${suitLetter[suitKey]}.svg`;
 }
