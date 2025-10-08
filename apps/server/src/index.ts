@@ -199,32 +199,36 @@ io.on('connection', (socket) => {
     const seat = socket.data.player;
     const state = roomState.get(roomId);
     if (!state) return;
+    const previousHand = [...state.hand.hands[seat]];
     const result = handleDiscard(state, seat, data.data.card as any);
     if (!result.ok) {
       socket.emit('errorMessage', result.error);
       return;
     }
-    const { rank, suit } = data.data.card;
-    const suitLetter = String(suit).charAt(0).toUpperCase();
     const actor = getActorInfo(roomId, seat);
+    const updatedHand = result.state.hand.hands[seat];
+    const removed = previousHand.find(
+      (prev) => !updatedHand.some((next) => next.rank === prev.rank && next.suit === prev.suit),
+    );
     const now = Date.now();
-    const privateLog: LogEntry = {
+    const reveal = removed ?? (data.data.card as { rank: string; suit: string });
+    socket.emit('log', {
       type: 'move',
-      text: `You discarded ${rank} of ${suitLetter}`,
+      text: `You discarded ${reveal.rank} of ${String(reveal.suit).charAt(0).toUpperCase()}`,
       when: now,
       actor,
       private: true,
-    };
-    socket.emit('log', privateLog);
+    });
     const publicLog: LogEntry = {
       type: 'move',
       text: `${actor.name} discarded a card face-down`,
       when: now,
       actor,
     };
-    updateRoomState(roomId, state, result.state, {
-      log: publicLog,
-    });
+    socket.emit('log', publicLog);
+    socket.to(roomId).emit('log', publicLog);
+    appendLog(roomId, publicLog);
+    updateRoomState(roomId, state, result.state);
   });
 
   socket.on('declareTrump', (raw) => {
