@@ -12,7 +12,6 @@ export interface HandState {
   initialOfferee?: PlayerId;
   acceptor?: PlayerId;
   forcedAccept: boolean;
-  kittyAcceptedCard?: Card;
   trump?: Card['suit'];
   currentTrick?: TrickState;
   completedTricks: Trick[];

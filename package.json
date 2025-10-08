@@ -1,10 +1,18 @@
 {
-  "name": "hooker-monorepo",
-  "private": true,
+  "name": "@hooker/engine",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "lint": "pnpm -r lint"
+    "build": "tsup src/index.ts --dts --format esm,cjs --out-dir dist",
+    "build:shared": "pnpm --filter @hooker/shared build",
+    "build:engine": "pnpm --filter @hooker/engine build",
+    "predev:server": "pnpm build:shared && pnpm build:engine",
+    "dev:server": "pnpm --filter ./apps/server dev",
+    "dev:client": "pnpm --filter ./apps/client dev",
+    "dev": "tsup src/index.ts --dts --watch",
+    "test": "vitest run"
   }
 }

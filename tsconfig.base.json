@@ -12,6 +12,7 @@
     "baseUrl": ".",
     "paths": {
       "@hooker/shared/*": ["packages/shared/src/*"],
+      "@hooker/shared": ["packages/shared/src/index.ts"],
       "@hooker/engine/*": ["packages/engine/src/*"]
     }
   }

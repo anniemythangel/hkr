@@ -12,7 +12,7 @@ import { createDeck, shuffleDeck } from './deck';
 import { scoreHand } from './scoring';
 import { cardEquals, canFollowSuit, determineTrickWinner, effectiveSuit } from './trick';
 import { assignTeams, cloneHands, createEmptyHands, nextPlayer } from './utils';
-import { GameState, Result } from './types';
+import { GameState, Result, TrickState } from './types';
 
 interface MatchOptions {
   decks?: Card[][];
@@ -121,7 +121,6 @@ function startHand(state: GameState, options: MatchOptions = {}): GameState {
       initialOfferee: kittyOfferee,
       acceptor: undefined,
       forcedAccept: false,
-      kittyAcceptedCard: undefined,
       trump: undefined,
       currentTrick: undefined,
       completedTricks: [],
@@ -197,7 +196,6 @@ export function handleKittyDecision(
         hands,
         kitty: rest,
         acceptor: player,
-        kittyAcceptedCard: top,
         kittyOfferee: undefined,
       },
     },
@@ -214,9 +212,6 @@ export function handleDiscard(state: GameState, player: PlayerId, card: Card): R
   const cardIndex = hand.hands[player].findIndex((c) => cardEquals(c, card));
   if (cardIndex === -1) {
     return { ok: false, error: 'Card not found in hand' };
-  }
-  if (hand.kittyAcceptedCard && cardEquals(hand.kittyAcceptedCard, card)) {
-    return { ok: false, error: 'Cannot discard the accepted kitty card' };
   }
 
   const hands = cloneHands(hand.hands);

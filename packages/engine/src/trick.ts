@@ -7,7 +7,7 @@ export function cardEquals(a: Card, b: Card) {
 }
 
 export function effectiveSuit(card: Card, trump: Suit): Suit {
-  if (card.rank === 'J' && card.suit === trump) {
+  if (isNassih(card, trump) || isNassihAhh(card, trump)) {
     return trump;
   }
   return card.suit;
@@ -35,7 +35,7 @@ export function determineTrickWinner(
     return nassihAhh.player;
   }
 
-  const trumpCards = cards.filter(({ card }) => card.suit === trump);
+  const trumpCards = cards.filter(({ card }) => effectiveSuit(card, trump) === trump);
   if (trumpCards.length > 0) {
     return trumpCards.reduce((best, current) => {
       if (!best) return current;
