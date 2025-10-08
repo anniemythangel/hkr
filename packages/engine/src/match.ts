@@ -105,7 +105,7 @@ function initialState(options: MatchOptions = {}): GameState {
 }
 
 export function createMatch(options?: MatchOptions): GameState {
-  return advanceState(initialState(options), options);
+  return initialState(options);
 }
 
 function startHand(state: GameState, options: MatchOptions = {}): GameState {
@@ -414,7 +414,7 @@ function startNextGame(state: GameState, options: MatchOptions = {}): GameState 
 
 export function advanceState(state: GameState, options: MatchOptions = {}): GameState {
   if (state.phase === 'MatchSetup') {
-    return advanceState(startHand(state, options), options);
+    return startHand(state, options);
   }
 
   if (state.phase === 'HandScore') {
@@ -425,8 +425,10 @@ export function advanceState(state: GameState, options: MatchOptions = {}): Game
         phase: 'GameOver',
       };
     }
-    const nextState = resetForNextHand(state);
-    return startHand(nextState, options);
+    return {
+      ...resetForNextHand(state),
+      phase: 'MatchSetup',
+    };
   }
 
   if (state.phase === 'GameOver') {
@@ -456,7 +458,7 @@ export function advanceState(state: GameState, options: MatchOptions = {}): Game
       };
     }
 
-    const nextGameState = startNextGame(
+    return startNextGame(
       {
         ...state,
         gameResults: updatedGameResults,
@@ -464,7 +466,6 @@ export function advanceState(state: GameState, options: MatchOptions = {}): Game
       },
       options,
     );
-    return advanceState(nextGameState, options);
   }
 
   return state;

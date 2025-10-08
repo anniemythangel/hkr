@@ -136,8 +136,7 @@ io.on('connection', (socket) => {
     socket.join(roomId);
 
     if (!roomState.has(roomId)) {
-      const initial = autoAdvance(createMatch());
-      roomState.set(roomId, initial);
+      roomState.set(roomId, autoAdvance(createMatch()));
     }
 
     const roster = ensureRoster(roomId);
@@ -168,23 +167,19 @@ io.on('connection', (socket) => {
 
     const roomId = socket.data.roomId;
     const seat = socket.data.player;
-    const state = roomState.get(roomId);
-    if (!state) return;
-    const result = handleKittyDecision(state, seat, data.data.accept);
-    if (!result.ok) {
-      socket.emit('errorMessage', result.error);
-      return;
-    }
-    const actor = getActorInfo(roomId, seat);
-    const logText = data.data.accept
-      ? `${actor.name} picked up the kitty`
-      : `${actor.name} passed the kitty`;
-    const extra =
-      !data.data.accept && !state.hand.forcedAccept && result.state.hand.forcedAccept
-        ? ' (forced accept)'
-        : '';
-    updateRoomState(roomId, state, result.state, {
-      log: { type: 'move', text: `${logText}${extra}`, when: Date.now(), actor },
+    act(roomId, (s) => handleKittyDecision(s, seat, data.data.accept), {
+      actPlayer: seat,
+      onSuccess: (previous, current) => {
+        const actor = getActorInfo(roomId, seat);
+        const logText = data.data.accept
+          ? `${actor.name} picked up the kitty`
+          : `${actor.name} passed the kitty`;
+        const extra =
+          !data.data.accept && !previous.hand.forcedAccept && current.hand.forcedAccept
+            ? ' (forced accept)'
+            : '';
+        return { type: 'move', text: `${logText}${extra}`, when: Date.now(), actor };
+      },
     });
   });
 
@@ -197,38 +192,37 @@ io.on('connection', (socket) => {
     }
     const roomId = socket.data.roomId;
     const seat = socket.data.player;
-    const state = roomState.get(roomId);
-    if (!state) return;
-    const previousHand = [...state.hand.hands[seat]];
-    const result = handleDiscard(state, seat, data.data.card as any);
-    if (!result.ok) {
-      socket.emit('errorMessage', result.error);
-      return;
-    }
-    const actor = getActorInfo(roomId, seat);
-    const updatedHand = result.state.hand.hands[seat];
-    const removed = previousHand.find(
-      (prev) => !updatedHand.some((next) => next.rank === prev.rank && next.suit === prev.suit),
-    );
-    const when = Date.now();
-    const reveal = removed ?? (data.data.card as { rank: string; suit: string });
-    const privateLog: LogEntry = {
-      type: 'move',
-      text: `You discarded ${reveal.rank} of ${String(reveal.suit)[0].toUpperCase()}`,
-      when,
-      actor,
-      private: true,
-    };
-    socket.emit('log', privateLog);
-    const publicLog: LogEntry = {
-      type: 'move',
-      text: `${actor.name} discarded a card face-down`,
-      when,
-      actor,
-    };
-    socket.to(roomId).emit('log', publicLog);
-    appendLog(roomId, publicLog);
-    updateRoomState(roomId, state, result.state);
+    const previousHand = [...(roomState.get(roomId)?.hand.hands[seat] ?? [])];
+    act(roomId, (s) => handleDiscard(s, seat, data.data.card as any), {
+      actPlayer: seat,
+      onSuccess: (_, current) => {
+        const actor = getActorInfo(roomId, seat);
+        const updatedHand = current.hand.hands[seat as PlayerId];
+        const removed = previousHand.find(
+          (prev) =>
+            !updatedHand.some((next: any) => next.rank === prev.rank && next.suit === prev.suit),
+        );
+        const when = Date.now();
+        const reveal = removed ?? (data.data.card as { rank: string; suit: string });
+        const privateLog: LogEntry = {
+          type: 'move',
+          text: `You discarded ${reveal.rank} of ${String(reveal.suit)[0].toUpperCase()}`,
+          when,
+          actor,
+          private: true,
+        };
+        socket.emit('log', privateLog);
+        const publicLog: LogEntry = {
+          type: 'move',
+          text: `${actor.name} discarded a card face-down`,
+          when,
+          actor,
+        };
+        socket.to(roomId).emit('log', publicLog);
+        appendLog(roomId, publicLog);
+        return null; // No broadcast log
+      },
+    });
   });
 
   socket.on('declareTrump', (raw) => {
@@ -240,21 +234,17 @@ io.on('connection', (socket) => {
     }
     const roomId = socket.data.roomId;
     const seat = socket.data.player;
-    const state = roomState.get(roomId);
-    if (!state) return;
-    const result = handleDeclareTrump(state, seat, data.data.suit as any);
-    if (!result.ok) {
-      socket.emit('errorMessage', result.error);
-      return;
-    }
-    const actor = getActorInfo(roomId, seat);
-    const suitName = formatSuitName(data.data.suit);
-    updateRoomState(roomId, state, result.state, {
-      log: {
-        type: 'move',
-        text: `${actor.name} declared ${suitName} as trump`,
-        when: Date.now(),
-        actor,
+    act(roomId, (s) => handleDeclareTrump(s, seat, data.data.suit as any), {
+      actPlayer: seat,
+      onSuccess: () => {
+        const actor = getActorInfo(roomId, seat);
+        const suitName = formatSuitName(data.data.suit);
+        return {
+          type: 'move',
+          text: `${actor.name} declared ${suitName} as trump`,
+          when: Date.now(),
+          actor,
+        };
       },
     });
   });
@@ -268,21 +258,17 @@ io.on('connection', (socket) => {
     }
     const roomId = socket.data.roomId;
     const seat = socket.data.player;
-    const state = roomState.get(roomId);
-    if (!state) return;
-    const result = handlePlayCard(state, seat, data.data.card as any);
-    if (!result.ok) {
-      socket.emit('errorMessage', result.error);
-      return;
-    }
-    const { rank, suit } = data.data.card;
-    const actor = getActorInfo(roomId, seat);
-    updateRoomState(roomId, state, result.state, {
-      log: {
-        type: 'move',
-        text: `${actor.name} played ${formatCard(rank, suit)}`,
-        when: Date.now(),
-        actor,
+    act(roomId, (s) => handlePlayCard(s, seat, data.data.card as any), {
+      actPlayer: seat,
+      onSuccess: () => {
+        const { rank, suit } = data.data.card;
+        const actor = getActorInfo(roomId, seat);
+        return {
+          type: 'move',
+          text: `${actor.name} played ${formatCard(rank, suit)}`,
+          when: Date.now(),
+          actor,
+        };
       },
     });
   });
@@ -333,16 +319,34 @@ function autoAdvance(state: GameState): GameState {
   }
 }
 
-function updateRoomState(
+function act(
   roomId: string,
-  previous: GameState,
-  updated: GameState,
-  options: { log?: LogEntry } = {},
+  fn: (state: GameState) => { ok: true; state: GameState } | { ok: false; error: string },
+  options: {
+    actPlayer?: PlayerId;
+    onSuccess?: (previous: GameState, current: GameState) => LogEntry | null;
+  } = {},
 ) {
-  const advanced = autoAdvance(updated);
+  const previous = roomState.get(roomId);
+  if (!previous) return;
+
+  const result = fn(previous);
+  if (!result.ok) {
+    if (options.actPlayer) {
+      const socket = io.sockets.sockets.get(roomRosters.get(roomId)?.get(options.actPlayer)?.socketId ?? '');
+      if (socket) {
+        socket.emit('errorMessage', result.error);
+      }
+    }
+    return;
+  }
+
+  const log = options.onSuccess?.(previous, result.state);
+  const advanced = autoAdvance(result.state);
   roomState.set(roomId, advanced);
   broadcastSnapshot(roomId, advanced);
-  const logs = collectLogs(roomId, previous, updated, advanced, options.log);
+
+  const logs = collectLogs(roomId, previous, result.state, advanced, log ?? undefined);
   if (logs.length > 0) {
     for (const entry of logs) {
       emitRoomLog(roomId, entry);
