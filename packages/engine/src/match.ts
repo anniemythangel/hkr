@@ -185,8 +185,9 @@ export function handleKittyDecision(
   }
 
   const [top, ...rest] = hand.kitty;
+  const topClone: Card = { ...top };
   const hands = cloneHands(hand.hands);
-  hands[player] = [...hands[player], top];
+  hands[player] = [...hands[player], topClone];
 
   return {
     ok: true,
@@ -199,7 +200,7 @@ export function handleKittyDecision(
         kitty: rest,
         acceptor: player,
         kittyOfferee: undefined,
-        pickedFromKitty: top,
+        pickedFromKitty: topClone,
       },
     },
   };
@@ -473,9 +474,8 @@ function legalCardsForPlayer(state: GameState, player: PlayerId): Card[] {
   if (state.phase === 'Discard') {
     if (state.hand.acceptor === player) {
       const pfk = state.hand.pickedFromKitty;
-      return pfk
-        ? state.hand.hands[player].filter((card) => !cardEquals(card, pfk))
-        : [...state.hand.hands[player]];
+      const handCards = state.hand.hands[player];
+      return pfk ? handCards.filter((card) => !cardEquals(card, pfk)) : [...handCards];
     }
     return [];
   }
