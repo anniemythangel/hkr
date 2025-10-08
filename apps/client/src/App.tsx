@@ -3,6 +3,8 @@ import type { Card, MatchSnapshot, PlayerId, Suit } from '@hooker/shared';
 import ConsolePanel from './components/ConsolePanel';
 import ChatBox from './components/ChatBox';
 import { useSocket } from './hooks/useSocket';
+import { cardAssetUrl, suitFull } from './utils/cardAssets';
+
 
 const DEFAULT_SERVER = import.meta.env.VITE_WS_URL ?? 'http://localhost:3001';
 const PLAYER_IDS: PlayerId[] = ['A', 'B', 'C', 'D'];
@@ -278,19 +280,25 @@ function App() {
                     return (
                       <button
                         type="button"
-                        key={key}
-                        className={`card ${legal ? 'legal' : ''} ${actionable ? 'actionable' : ''}`}
-                        onClick={() => {
-                          if (!actionable) return;
-                          if (snapshot.phase === 'Discard') {
-                            handleDiscard(card);
-                          } else if (snapshot.phase === 'TrickPlay') {
-                            handlePlayCard(card);
-                          }
-                        }}
-                        disabled={!actionable}
-                      >
-                        {formatCard(card)}
+                          key={key}
+                          className={`card ${legal ? 'legal' : ''} ${actionable ? 'actionable' : ''}`}
+                          onClick={() => {
+                            if (!actionable) return;
+                            if (snapshot.phase === 'Discard') {
+                              handleDiscard(card);
+                            } else if (snapshot.phase === 'TrickPlay') {
+                              handlePlayCard(card);
+                            }
+                          }}
+                          disabled={!actionable}
+                          aria-label={`${card.rank} of ${suitFull(card.suit)}`}  // so SR users hear the card
+                        >
+                          <img
+                            src={cardAssetUrl(card)}
+                            alt=""                     // img itself is decorative; the button has the label
+                            className="card-img"
+                            draggable={false}
+                          />
                       </button>
                     );
                   })}
@@ -335,7 +343,12 @@ function App() {
                     {snapshot.currentTrick.cards.map((entry) => (
                       <li key={`${entry.player}-${cardKey(entry.card)}`} className="trick-card">
                         <span className="trick-player">{entry.player}</span>
-                        <span>{formatCard(entry.card)}</span>
+                        <img
+                          src={cardAssetUrl(entry.card)}
+                          alt={formatCard(entry.card)} // Alt text describes the card
+                          className="card-img"
+                          draggable={false}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -357,7 +370,12 @@ function App() {
                         {trick.cards.map((entry) => (
                           <li key={`${entry.player}-${cardKey(entry.card)}`} className="trick-card">
                             <span className="trick-player">{entry.player}</span>
-                            <span>{formatCard(entry.card)}</span>
+                            <img
+                              src={cardAssetUrl(entry.card)}
+                              alt={formatCard(entry.card)}
+                              className="card-img"
+                              draggable={false}
+                            />
                           </li>
                         ))}
                       </ul>
