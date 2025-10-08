@@ -210,22 +210,22 @@ io.on('connection', (socket) => {
     const removed = previousHand.find(
       (prev) => !updatedHand.some((next) => next.rank === prev.rank && next.suit === prev.suit),
     );
-    const now = Date.now();
+    const when = Date.now();
     const reveal = removed ?? (data.data.card as { rank: string; suit: string });
-    socket.emit('log', {
+    const privateLog: LogEntry = {
       type: 'move',
-      text: `You discarded ${reveal.rank} of ${String(reveal.suit).charAt(0).toUpperCase()}`,
-      when: now,
+      text: `You discarded ${reveal.rank} of ${String(reveal.suit)[0].toUpperCase()}`,
+      when,
       actor,
       private: true,
-    });
+    };
+    socket.emit('log', privateLog);
     const publicLog: LogEntry = {
       type: 'move',
       text: `${actor.name} discarded a card face-down`,
-      when: now,
+      when,
       actor,
     };
-    socket.emit('log', publicLog);
     socket.to(roomId).emit('log', publicLog);
     appendLog(roomId, publicLog);
     updateRoomState(roomId, state, result.state);
