@@ -19,6 +19,8 @@ export type ConsoleEntry = {
 
 const SYSTEM_ACTOR: ConsoleActor = { seat: null, name: 'System' };
 
+type Roster = Partial<Record<PlayerId, { name: string }>>;
+
 export type ChatMessage = {
   name: string;
   text: string;
@@ -69,6 +71,7 @@ export function useSocket(defaultServerUrl: string) {
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<ConsoleEntry[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [roster, setRoster] = useState<Roster>({});
   const [token, setToken] = useState<RejoinToken | null>(() => readToken());
 
   const socketRef = useRef<Socket | null>(null);
@@ -107,6 +110,7 @@ export function useSocket(defaultServerUrl: string) {
     setSnapshot(null);
     setLogs([]);
     setChatMessages([]);
+    setRoster({});
   }, []);
 
   const connect = useCallback(
@@ -169,6 +173,10 @@ export function useSocket(defaultServerUrl: string) {
         setSnapshot(data);
       });
 
+      socket.on('roster', (data: Roster) => {
+        setRoster(data ?? {});
+      });
+
       socket.on('errorMessage', (message: string) => {
         setError(message);
         appendLog({ type: 'system', text: message, when: Date.now(), actor: SYSTEM_ACTOR });
@@ -215,6 +223,7 @@ export function useSocket(defaultServerUrl: string) {
     }
     setStatus('disconnected');
     setSnapshot(null);
+    setRoster({});
   }, []);
 
   const emitAction = useCallback(
@@ -290,6 +299,7 @@ export function useSocket(defaultServerUrl: string) {
     disconnect,
     emitAction,
     sendChat,
+    roster,
     token,
     clearToken,
     defaultServer: effectiveServerUrl,
