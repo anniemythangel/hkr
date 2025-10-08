@@ -12,19 +12,28 @@ import { createDeck, shuffleDeck } from './deck';
 import { scoreHand } from './scoring';
 import { cardEquals, canFollowSuit, determineTrickWinner, effectiveSuit } from './trick';
 import { assignTeams, cloneHands, createEmptyHands, nextPlayer } from './utils';
-import { GameState, Result, TrickState } from './types';
+import { GameState, MatchOptions, Result, TrickState } from './types';
 
-interface MatchOptions {
-  decks?: Card[][];
-  rng?: () => number;
-}
-
-function takeDeck(
-  pool: Card[][],
+function getNextDeck(
+  stateLike: { gameIndex: number }, // accepts a minimal state-like
+  options: MatchOptions,
+  purpose: 'determineDealer' | 'dealHand',
+  legacyPool: Card[][],
   rng: () => number,
 ): { deck: Card[]; remaining: Card[][] } {
-  if (pool.length > 0) {
-    const [head, ...rest] = pool;
+  if (options.deckProvider) {
+    const deck = options.deckProvider({
+      purpose,
+      gameIndex: stateLike.gameIndex ?? 0,
+      handNumber: purpose === 'determineDealer' ? 0 : 0, // handNumber is 0 at first startHand; if you track hand count later, pass it here.
+    });
+    // Provider controls determinism; we don’t keep a future queue.
+    return { deck: [...deck], remaining: legacyPool }; // don’t modify legacyPool
+  }
+
+  // Legacy preload mode: use the pool if provided, otherwise shuffle.
+  if (legacyPool.length > 0) {
+    const [head, ...rest] = legacyPool;
     return { deck: [...head], remaining: rest.map((d) => [...d]) };
   }
   return { deck: shuffleDeck(createDeck(), rng), remaining: [] };
@@ -69,7 +78,17 @@ function dealHand(deck: Card[], dealer: PlayerId, seating: PlayerId[]) {
 
 function initialState(options: MatchOptions = {}): GameState {
   const config = GAME_CONFIGS[0];
-  const { deck: aceDeck, remaining } = takeDeck(options.decks ?? [], options.rng ?? Math.random);
+  const rng = options.rng ?? Math.random;
+
+  // If provider is present, do not preload future decks into state.
+  // Otherwise, we pass the options.decks pool for legacy behavior.
+  const { deck: aceDeck, remaining } = getNextDeck(
+    { gameIndex: 0 },
+    options,
+    'determineDealer',
+    options.decks ?? [],
+    rng,
+  );
   const dealer = determineDealer(aceDeck, config.seating);
 
   return {
@@ -100,7 +119,8 @@ function initialState(options: MatchOptions = {}): GameState {
       C: 0,
       D: 0,
     },
-    remainingDecks: remaining,
+    // If deckProvider is used, do not carry a preloaded list forward.
+    remainingDecks: options.deckProvider ? [] : remaining ?? [],
   };
 }
 
@@ -109,7 +129,16 @@ export function createMatch(options?: MatchOptions): GameState {
 }
 
 function startHand(state: GameState, options: MatchOptions = {}): GameState {
-  const { deck, remaining } = takeDeck(state.remainingDecks, options.rng ?? Math.random);
+  // NOTE: When deckProvider is present, future decks are not preloaded into state.
+  // They are fetched on demand per hand, avoiding pre-determined kitties in tests.
+  const rng = options.rng ?? Math.random;
+  const { deck, remaining } = getNextDeck(
+    state, // has gameIndex
+    options,
+    'dealHand',
+    state.remainingDecks ?? [],
+    rng,
+  );
   const { hands, kitty, kittyOfferee } = dealHand(deck, state.dealer, state.seating);
 
   return {
@@ -129,7 +158,8 @@ function startHand(state: GameState, options: MatchOptions = {}): GameState {
       passes: [],
       pickedFromKitty: undefined,
     },
-    remainingDecks: remaining,
+    // If provider is used, do not mutate remainingDecks (keep []).
+    remainingDecks: options.deckProvider ? [] : remaining,
   };
 }
 
@@ -385,7 +415,16 @@ function resetForNextHand(state: GameState): GameState {
 function startNextGame(state: GameState, options: MatchOptions = {}): GameState {
   const nextGameIndex = state.gameIndex + 1;
   const config = GAME_CONFIGS[nextGameIndex % GAME_CONFIGS.length];
-  const { deck: aceDeck, remaining } = takeDeck(state.remainingDecks, options.rng ?? Math.random);
+  // NOTE: When deckProvider is present, future decks are not preloaded into state.
+  // They are fetched on demand per hand, avoiding pre-determined kitties in tests.
+  const rng = options.rng ?? Math.random;
+  const { deck: aceDeck, remaining } = getNextDeck(
+    { gameIndex: nextGameIndex },
+    options,
+    'determineDealer',
+    state.remainingDecks ?? [],
+    rng,
+  );
   const dealer = determineDealer(aceDeck, config.seating);
   return {
     ...state,
@@ -408,7 +447,8 @@ function startNextGame(state: GameState, options: MatchOptions = {}): GameState 
       passes: [],
     },
     lastHandSummary: undefined,
-    remainingDecks: remaining,
+    // If provider is used, do not mutate remainingDecks (keep []).
+    remainingDecks: options.deckProvider ? [] : remaining,
   };
 }
 
@@ -501,7 +541,9 @@ function legalCardsForPlayer(state: GameState, player: PlayerId): Card[] {
 }
 
 export function getSnapshot(state: GameState, viewer: PlayerId): MatchSnapshot {
-  const kittyTopCard = state.hand.kitty.length > 0 ? state.hand.kitty[0] : null;
+  // The top card of the kitty is only visible during the kitty decision phase.
+  const kittyTopCard =
+    state.phase === 'KittyDecision' && state.hand.kitty.length > 0 ? state.hand.kitty[0] : null;
   const otherHandCounts: Record<PlayerId, number> = {
     A: state.hand.hands.A.length,
     B: state.hand.hands.B.length,

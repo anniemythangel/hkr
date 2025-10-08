@@ -37,3 +37,17 @@ export interface GameState {
 }
 
 export type Result<T> = { ok: true; state: T } | { ok: false; error: string };
+
+export type DeckProviderCtx = {
+  purpose: 'determineDealer' | 'dealHand';
+  gameIndex: number; // 0-based game index
+  handNumber: number; // 0-based hand count within the game (increment each startHand). If unknown at dealer time, pass 0.
+};
+
+export type DeckProvider = (ctx: DeckProviderCtx) => Card[];
+
+export interface MatchOptions {
+  decks?: Card[][];
+  rng?: () => number;
+  deckProvider?: DeckProvider; // NEW: per-hand deck supplier (test-use). If present, overrides decks[].
+}
