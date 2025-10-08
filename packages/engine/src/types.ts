@@ -17,6 +17,7 @@ export interface HandState {
   completedTricks: Trick[];
   trickIndex: number;
   passes: PlayerId[];
+  pickedFromKitty?: Card;
 }
 
 export interface GameState {

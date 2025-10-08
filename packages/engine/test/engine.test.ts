@@ -115,7 +115,8 @@ describe('kitty flow and forced accept', () => {
     expect(state.phase).toBe('Discard');
     expect(state.hand.hands.C).toHaveLength(6);
 
-    const badDiscard = handleDiscard(state, 'C', card('J', 'C'));
+    const kittyCard = state.hand.pickedFromKitty!;
+    const badDiscard = handleDiscard(state, 'C', kittyCard);
     expect(badDiscard.ok).toBe(false);
 
     const goodDiscard = handleDiscard(state, 'C', card('9', 'C'));
@@ -212,7 +213,7 @@ describe('random hand simulations', () => {
           } else if (state.phase === 'Discard') {
             const acceptor = state.hand.acceptor!;
             const discardCard = state.hand.hands[acceptor].find(
-              (c) => !state.hand.kittyAcceptedCard || c.rank !== state.hand.kittyAcceptedCard.rank || c.suit !== state.hand.kittyAcceptedCard.suit,
+              (c) => !state.hand.pickedFromKitty || c.rank !== state.hand.pickedFromKitty.rank || c.suit !== state.hand.pickedFromKitty.suit,
             );
             if (!discardCard) {
               throw new Error('No discard available');

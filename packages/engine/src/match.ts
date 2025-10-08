@@ -90,6 +90,7 @@ function initialState(options: MatchOptions = {}): GameState {
       completedTricks: [],
       trickIndex: 0,
       passes: [],
+      pickedFromKitty: undefined,
     },
     lastHandSummary: undefined,
     gameResults: [],
@@ -126,6 +127,7 @@ function startHand(state: GameState, options: MatchOptions = {}): GameState {
       completedTricks: [],
       trickIndex: 0,
       passes: [],
+      pickedFromKitty: undefined,
     },
     remainingDecks: remaining,
   };
@@ -197,6 +199,7 @@ export function handleKittyDecision(
         kitty: rest,
         acceptor: player,
         kittyOfferee: undefined,
+        pickedFromKitty: top,
       },
     },
   };
@@ -208,6 +211,9 @@ export function handleDiscard(state: GameState, player: PlayerId, card: Card): R
   const hand = state.hand;
   if (hand.acceptor !== player) {
     return { ok: false, error: 'Only the acceptor may discard' };
+  }
+  if (hand.pickedFromKitty && cardEquals(card, hand.pickedFromKitty)) {
+    return { ok: false, error: 'May not discard the picked kitty card' };
   }
   const cardIndex = hand.hands[player].findIndex((c) => cardEquals(c, card));
   if (cardIndex === -1) {
@@ -227,6 +233,7 @@ export function handleDiscard(state: GameState, player: PlayerId, card: Card): R
         ...hand,
         hands,
         kitty,
+        pickedFromKitty: undefined,
       },
     },
   };
@@ -463,6 +470,16 @@ export function advanceState(state: GameState, options: MatchOptions = {}): Game
 }
 
 function legalCardsForPlayer(state: GameState, player: PlayerId): Card[] {
+  if (state.phase === 'Discard') {
+    if (state.hand.acceptor === player) {
+      const pfk = state.hand.pickedFromKitty;
+      return pfk
+        ? state.hand.hands[player].filter((card) => !cardEquals(card, pfk))
+        : [...state.hand.hands[player]];
+    }
+    return [];
+  }
+
   if (state.phase !== 'TrickPlay' || !state.hand.currentTrick || !state.hand.trump) {
     return [...state.hand.hands[player]];
   }
