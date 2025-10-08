@@ -1,10 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import type { Card, MatchSnapshot, PlayerId, Suit } from '@hooker/shared';
+import type { Card, PlayerId, Suit } from '@hooker/shared';
 import ConsolePanel from './components/ConsolePanel';
 import ChatBox from './components/ChatBox';
+import TableLayout from './components/TableLayout';
 import { useSocket } from './hooks/useSocket';
-import { cardAssetUrl, suitFull } from './utils/cardAssets';
-
 
 const DEFAULT_SERVER = import.meta.env.VITE_WS_URL ?? 'http://localhost:3001';
 const PLAYER_IDS: PlayerId[] = ['A', 'B', 'C', 'D'];
@@ -14,34 +13,6 @@ const SUIT_LABEL: Record<Suit, string> = {
   hearts: 'Hearts ♥',
   spades: 'Spades ♠',
 };
-
-function cardKey(card: Card) {
-  return `${card.rank}-${card.suit}`;
-}
-
-function getActiveSeat(snapshot: MatchSnapshot): PlayerId | null {
-  switch (snapshot.phase) {
-    case 'KittyDecision':
-      return snapshot.kittyOfferee ?? null;
-    case 'Discard':
-      return snapshot.acceptor ?? null;
-    case 'TrumpDeclaration':
-      return snapshot.dealer;
-    case 'TrickPlay': {
-      if (!snapshot.currentTrick) return null;
-      const { currentTrick, seating } = snapshot;
-      const leaderIndex = seating.indexOf(currentTrick.leader);
-      const turnIndex = (leaderIndex + currentTrick.cards.length) % seating.length;
-      return seating[turnIndex];
-    }
-    default:
-      return null;
-  }
-}
-
-function formatCard(card: Card) {
-  return `${card.rank} ${card.suit[0].toUpperCase()}`;
-}
 
 function App() {
   const {
@@ -102,20 +73,10 @@ function App() {
   const combinedError = formError ?? socketError ?? null;
   const displayName = name.trim() || `Player ${playerId}`;
 
-  const nameForSeat = (seat: PlayerId) => roster?.[seat]?.name?.trim() || `Player ${seat}`;
-
-  const legalKeys = useMemo(() => {
-    if (!snapshot) return new Set<string>();
-    return new Set(snapshot.legalCards.map(cardKey));
-  }, [snapshot]);
-
-  const myTurn = useMemo(() => {
-    if (!snapshot) return false;
-    const active = getActiveSeat(snapshot);
-    return active === playerId;
-  }, [snapshot, playerId]);
-
-  const activeSeat = snapshot ? getActiveSeat(snapshot) : null;
+  const nameForSeat = useMemo(
+    () => (seat: PlayerId) => roster?.[seat]?.name?.trim() || `Player ${seat}`,
+    [roster],
+  );
 
   const handleJoin = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -198,114 +159,14 @@ function App() {
 
           {snapshot ? (
             <section className="panel table-panel" aria-live="polite">
-              <div className="table-status">
-                <div>
-                  <strong>Phase:</strong> {snapshot.phase}
-                </div>
-                <div className="dealer-line">
-                  <strong>Dealer:</strong> {snapshot.dealer}
-                  {snapshot.trump && (
-                    <span className="trump-badge" aria-label={`Trump is ${SUIT_LABEL[snapshot.trump]}`}>
-                      {SUIT_LABEL[snapshot.trump]}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <strong>Kitty:</strong>{' '}
-                  {snapshot.kittyTopCard ? formatCard(snapshot.kittyTopCard) : 'Hidden'}
-                </div>
-              </div>
-
-              <div className="seat-grid" role="list" aria-label="Table seating">
-                {snapshot.seating.map((seat) => {
-                  const isDealer = snapshot.dealer === seat;
-                  const isActive = activeSeat === seat;
-                  const isSelf = seat === playerId;
-                  return (
-                    <div
-                      key={seat}
-                      className={`seat-card${isSelf ? ' seat-card-self' : ''}${isActive ? ' seat-card-active' : ''}`}
-                      role="listitem"
-                    >
-                      <div className="seat-label-row">
-                        <span className="seat-label">Seat {seat}</span>
-                        {isDealer && <span className="badge badge-dealer">Dealer</span>}
-                      </div>
-                      <div className="seat-name">
-                        {seat === playerId ? displayName : nameForSeat(seat)}
-                        {isActive && (
-                          <span className="turn-indicator" aria-hidden="true">
-                            {seat === playerId ? 'Your turn' : 'Acting'}
-                          </span>
-                        )}
-                      </div>
-                      {isActive && isSelf && <span className="sr-only">It is your turn.</span>}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="scoreboard" aria-label="Scores">
-                {Object.entries(snapshot.scores).map(([team, value]) => (
-                  <div key={team} className="score-card">
-                    <div className="score-team">{team}</div>
-                    <div className="score-players">
-                      {snapshot.teamAssignments[team as keyof typeof snapshot.teamAssignments].join(' & ')}
-                    </div>
-                    <div className="score-value">{value} / 10</div>
-                  </div>
-                ))}
-              </div>
-
-              {snapshot.lastHandSummary && (
-                <div className="badge badge-info">
-                  Last hand: Team {snapshot.lastHandSummary.winningTeam} +{snapshot.lastHandSummary.points}
-                </div>
-              )}
-
-              <section className="hand-panel" aria-label="Your hand">
-                <header className="hand-header">
-                  <h3>Your Hand</h3>
-                  {myTurn ? (
-                    <span className="badge badge-turn" aria-live="polite">
-                      Your move
-                    </span>
-                  ) : (
-                    <span className="subtle">Waiting for other players</span>
-                  )}
-                </header>
-                <div className="hand-cards">
-                  {snapshot.selfHand.map((card) => {
-                    const key = cardKey(card);
-                    const legal = legalKeys.has(key);
-                    const actionable = myTurn && legal;
-                    return (
-                      <button
-                        type="button"
-                          key={key}
-                          className={`card ${legal ? 'legal' : ''} ${actionable ? 'actionable' : ''}`}
-                          onClick={() => {
-                            if (!actionable) return;
-                            if (snapshot.phase === 'Discard') {
-                              handleDiscard(card);
-                            } else if (snapshot.phase === 'TrickPlay') {
-                              handlePlayCard(card);
-                            }
-                          }}
-                          disabled={!actionable}
-                          aria-label={`${card.rank} of ${suitFull(card.suit)}`}  // so SR users hear the card
-                        >
-                          <img
-                            src={cardAssetUrl(card)}
-                            alt=""                     // img itself is decorative; the button has the label
-                            className="card-img"
-                            draggable={false}
-                          />
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
+              <TableLayout
+                snapshot={snapshot}
+                playerId={playerId}
+                displayName={displayName}
+                nameForSeat={nameForSeat}
+                onDiscard={handleDiscard}
+                onPlay={handlePlayCard}
+              />
 
               <div className="action-row">
                 {snapshot.phase === 'KittyDecision' && snapshot.kittyOfferee === playerId && (
@@ -337,54 +198,6 @@ function App() {
                   <span className="subtle">Select a card above to discard.</span>
                 )}
               </div>
-
-              <section className="current-trick" aria-live="polite">
-                <h3>Current Trick</h3>
-                {snapshot.currentTrick ? (
-                  <ul className="trick-cards">
-                    {snapshot.currentTrick.cards.map((entry) => (
-                      <li key={`${entry.player}-${cardKey(entry.card)}`} className="trick-card">
-                        <span className="trick-player">{nameForSeat(entry.player)}</span>
-                        <img
-                          src={cardAssetUrl(entry.card)}
-                          alt={formatCard(entry.card)} // Alt text describes the card
-                          className="card-img"
-                          draggable={false}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="subtle">No active trick.</p>
-                )}
-              </section>
-
-              <section className="completed-tricks">
-                <h3>Completed Tricks</h3>
-                <div className="trick-list">
-                  {snapshot.completedTricks.map((trick, index) => (
-                    <div key={index} className="trick-summary">
-                      <div className="trick-header">
-                        <strong>Trick {index + 1}</strong>
-                        <span>Winner: {trick.winner ? nameForSeat(trick.winner) : '—'}</span>
-                      </div>
-                      <ul className="trick-cards">
-                        {trick.cards.map((entry) => (
-                          <li key={`${entry.player}-${cardKey(entry.card)}`} className="trick-card">
-                            <span className="trick-player">{nameForSeat(entry.player)}</span>
-                            <img
-                              src={cardAssetUrl(entry.card)}
-                              alt={formatCard(entry.card)}
-                              className="card-img"
-                              draggable={false}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </section>
             </section>
           ) : (
             <section className="panel placeholder-panel" aria-live="polite">
