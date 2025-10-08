@@ -11,6 +11,7 @@ import {
   advanceState,
 } from '@hooker/engine';
 import { PlayerId } from '@hooker/shared';
+import type { HandScoreSummary } from '@hooker/shared';
 import type { GameState } from '@hooker/engine';
 
 const port = Number(process.env.PORT ?? 3001);
@@ -22,7 +23,21 @@ const io = new Server(httpServer, {
   },
 });
 
+type LogEntry = {
+  type: 'system' | 'move';
+  text: string;
+  when: number;
+};
+
+type ChatEntry = {
+  name: string;
+  text: string;
+  when: number;
+};
+
 const roomState = new Map<string, GameState>();
+const roomLogs = new Map<string, LogEntry[]>();
+const roomChats = new Map<string, ChatEntry[]>();
 
 const joinSchema = z.object({
   roomId: z.string(),
@@ -53,6 +68,12 @@ const playCardSchema = z.object({
   }),
 });
 
+const chatSchema = z.object({
+  roomId: z.string(),
+  name: z.string().min(1),
+  text: z.string().min(1),
+});
+
 type SocketData = {
   roomId: string;
   player: PlayerId;
@@ -74,11 +95,22 @@ io.on('connection', (socket) => {
     socket.join(roomId);
 
     if (!roomState.has(roomId)) {
-      roomState.set(roomId, autoAdvance(createMatch()));
+      const initial = autoAdvance(createMatch());
+      roomState.set(roomId, initial);
     }
 
     const state = roomState.get(roomId)!;
     socket.emit('snapshot', getSnapshot(state, player));
+
+    const logs = roomLogs.get(roomId) ?? [];
+    for (const entry of logs) {
+      socket.emit('log', entry);
+    }
+
+    const chats = roomChats.get(roomId) ?? [];
+    for (const entry of chats) {
+      socket.emit('chat', entry);
+    }
   });
 
   socket.on('kittyDecision', (raw) => {
@@ -96,7 +128,16 @@ io.on('connection', (socket) => {
       socket.emit('errorMessage', result.error);
       return;
     }
-    updateRoomState(socket.data.roomId, result.state);
+    const logText = data.data.accept
+      ? `${socket.data.player} picked up the kitty`
+      : `${socket.data.player} passed the kitty`;
+    const extra =
+      !data.data.accept && !state.hand.forcedAccept && result.state.hand.forcedAccept
+        ? ' (forced accept)' 
+        : '';
+    updateRoomState(socket.data.roomId, state, result.state, {
+      log: { type: 'move', text: `${logText}${extra}`, when: Date.now() },
+    });
   });
 
   socket.on('discard', (raw) => {
@@ -113,7 +154,14 @@ io.on('connection', (socket) => {
       socket.emit('errorMessage', result.error);
       return;
     }
-    updateRoomState(socket.data.roomId, result.state);
+    const { rank, suit } = data.data.card;
+    updateRoomState(socket.data.roomId, state, result.state, {
+      log: {
+        type: 'move',
+        text: `${socket.data.player} discarded ${formatCard(rank, suit)}`,
+        when: Date.now(),
+      },
+    });
   });
 
   socket.on('declareTrump', (raw) => {
@@ -130,7 +178,13 @@ io.on('connection', (socket) => {
       socket.emit('errorMessage', result.error);
       return;
     }
-    updateRoomState(socket.data.roomId, result.state);
+    updateRoomState(socket.data.roomId, state, result.state, {
+      log: {
+        type: 'move',
+        text: `${socket.data.player} declared ${data.data.suit} as trump`,
+        when: Date.now(),
+      },
+    });
   });
 
   socket.on('playCard', (raw) => {
@@ -147,7 +201,32 @@ io.on('connection', (socket) => {
       socket.emit('errorMessage', result.error);
       return;
     }
-    updateRoomState(socket.data.roomId, result.state);
+    const { rank, suit } = data.data.card;
+    updateRoomState(socket.data.roomId, state, result.state, {
+      log: {
+        type: 'move',
+        text: `${socket.data.player} played ${formatCard(rank, suit)}`,
+        when: Date.now(),
+      },
+    });
+  });
+
+  socket.on('chat', (raw) => {
+    const data = chatSchema.safeParse(raw);
+    if (!data.success) {
+      socket.emit('errorMessage', data.error.message);
+      return;
+    }
+    if (!socket.data.roomId || socket.data.roomId !== data.data.roomId) {
+      return;
+    }
+    const entry: ChatEntry = {
+      name: data.data.name,
+      text: data.data.text,
+      when: Date.now(),
+    };
+    appendChat(data.data.roomId, entry);
+    io.to(data.data.roomId).emit('chat', entry);
   });
 
   socket.on('disconnect', () => {
@@ -167,10 +246,22 @@ function autoAdvance(state: GameState): GameState {
   }
 }
 
-function updateRoomState(roomId: string, updated: GameState) {
+function updateRoomState(
+  roomId: string,
+  previous: GameState,
+  updated: GameState,
+  options: { log?: LogEntry } = {},
+) {
   const advanced = autoAdvance(updated);
   roomState.set(roomId, advanced);
   broadcastSnapshot(roomId, advanced);
+  const logs = collectLogs(previous, updated, advanced, options.log);
+  if (logs.length > 0) {
+    for (const entry of logs) {
+      io.to(roomId).emit('log', entry);
+      appendLog(roomId, entry);
+    }
+  }
 }
 
 function broadcastSnapshot(roomId: string, state: GameState) {
@@ -183,6 +274,70 @@ function broadcastSnapshot(roomId: string, state: GameState) {
     if (!player) continue;
     socket.emit('snapshot', getSnapshot(state, player));
   }
+}
+
+function collectLogs(
+  previous: GameState,
+  updated: GameState,
+  advanced: GameState,
+  initial?: LogEntry,
+): LogEntry[] {
+  const entries: LogEntry[] = [];
+  if (initial) {
+    entries.push(initial);
+  }
+
+  if (updated.hand.completedTricks.length > previous.hand.completedTricks.length) {
+    const trick = updated.hand.completedTricks[updated.hand.completedTricks.length - 1];
+    entries.push({
+      type: 'system',
+      text: `Trick ${updated.hand.completedTricks.length} won by ${trick.winner}`,
+      when: Date.now(),
+    });
+  }
+
+  if (updated.phase === 'HandScore' && updated.lastHandSummary) {
+    const summary = updated.lastHandSummary;
+    entries.push(handSummaryLog(summary, advanced.scores));
+  }
+
+  if (advanced.phase === 'MatchOver') {
+    const latest = advanced.gameResults[advanced.gameResults.length - 1];
+    if (latest) {
+      entries.push({
+        type: 'system',
+        text: `Game over — ${latest.winner} wins ${latest.scores.NorthSouth}-${latest.scores.EastWest}`,
+        when: Date.now(),
+      });
+    }
+  }
+
+  return entries;
+}
+
+function handSummaryLog(summary: HandScoreSummary, scores: GameState['scores']): LogEntry {
+  const teamScores = `${scores.NorthSouth}-${scores.EastWest}`;
+  return {
+    type: 'system',
+    text: `Hand scored — ${summary.winningTeam} +${summary.points} (score ${teamScores})`,
+    when: Date.now(),
+  };
+}
+
+function appendLog(roomId: string, entry: LogEntry) {
+  const existing = roomLogs.get(roomId) ?? [];
+  const next = [...existing, entry];
+  roomLogs.set(roomId, next.slice(-200));
+}
+
+function appendChat(roomId: string, entry: ChatEntry) {
+  const existing = roomChats.get(roomId) ?? [];
+  const next = [...existing, entry];
+  roomChats.set(roomId, next.slice(-200));
+}
+
+function formatCard(rank: string, suit: string): string {
+  return `${rank} of ${suit.charAt(0).toUpperCase()}${suit.slice(1)}`;
 }
 
 httpServer.listen(port, () => {
