@@ -28,9 +28,9 @@ button {
 }
 
 .page {
-  max-width: 1260px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 2.5rem 1.5rem 4rem;
+  padding: 2rem 1rem 3rem;
 }
 
 .header {
@@ -190,6 +190,7 @@ button:disabled {
   overflow: hidden;
   border: 1px solid rgba(94, 234, 212, 0.2);
   box-shadow: inset 0 0 0 1px rgba(6, 47, 33, 0.5), 0 32px 48px rgba(4, 17, 12, 0.55);
+  min-height: clamp(520px, 78vh, 900px);
 }
 
 .felt-bg::after {
@@ -246,9 +247,10 @@ button:disabled {
 .table-stage-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);
-  grid-template-rows: auto minmax(260px, 1fr) auto;
+  grid-template-rows: auto 1fr auto;
   gap: 1rem;
   align-items: center;
+  height: 100%;
 }
 
 .table-seat {
@@ -317,6 +319,9 @@ button:disabled {
   .table-seat-bottom,
   .table-trick {
     grid-column: 1;
+  }
+  .side-panel {
+    order: 2;
   }
 }
 
@@ -452,8 +457,8 @@ button:disabled {
 
 .card-img {
   display: block;
-  width: clamp(72px, 7vw, 96px);
-  height: clamp(108px, 10vw, 144px);
+  width: clamp(60px, 8vw, 96px);
+  height: clamp(90px, 12vw, 144px);
   border-radius: 0.75rem;
   pointer-events: none;
 }
@@ -466,6 +471,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-height: clamp(160px, 28vh, 320px);
 }
 
 .trick-area-header {
@@ -545,16 +551,16 @@ button:disabled {
 }
 
 .trick-slot-placeholder {
-  width: clamp(72px, 7vw, 96px);
-  height: clamp(108px, 10vw, 144px);
+  width: clamp(60px, 8vw, 96px);
+  height: clamp(90px, 12vw, 144px);
   border-radius: 0.75rem;
   border: 1px solid rgba(148, 197, 166, 0.2);
   background: rgba(4, 24, 18, 0.5);
 }
 
 .trick-card-img {
-  width: clamp(72px, 7vw, 96px);
-  height: clamp(108px, 10vw, 144px);
+  width: clamp(60px, 8vw, 96px);
+  height: clamp(90px, 12vw, 144px);
   border-radius: 0.75rem;
   box-shadow: 0 12px 24px rgba(15, 118, 110, 0.45);
   animation: fade-in 0.25s ease;
