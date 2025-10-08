@@ -53,6 +53,7 @@ function App() {
     connect,
     emitAction,
     sendChat,
+    roster,
     token,
     clearToken,
     defaultServer,
@@ -100,6 +101,8 @@ function App() {
 
   const combinedError = formError ?? socketError ?? null;
   const displayName = name.trim() || `Player ${playerId}`;
+
+  const nameForSeat = (seat: PlayerId) => roster?.[seat]?.name?.trim() || `Player ${seat}`;
 
   const legalKeys = useMemo(() => {
     if (!snapshot) return new Set<string>();
@@ -218,7 +221,6 @@ function App() {
                   const isDealer = snapshot.dealer === seat;
                   const isActive = activeSeat === seat;
                   const isSelf = seat === playerId;
-                  const indicatorLabel = isSelf ? 'Your turn' : 'Acting';
                   return (
                     <div
                       key={seat}
@@ -230,10 +232,10 @@ function App() {
                         {isDealer && <span className="badge badge-dealer">Dealer</span>}
                       </div>
                       <div className="seat-name">
-                        {isSelf ? displayName : `Player ${seat}`}
+                        {seat === playerId ? displayName : nameForSeat(seat)}
                         {isActive && (
                           <span className="turn-indicator" aria-hidden="true">
-                            {indicatorLabel}
+                            {seat === playerId ? 'Your turn' : 'Acting'}
                           </span>
                         )}
                       </div>
@@ -342,7 +344,7 @@ function App() {
                   <ul className="trick-cards">
                     {snapshot.currentTrick.cards.map((entry) => (
                       <li key={`${entry.player}-${cardKey(entry.card)}`} className="trick-card">
-                        <span className="trick-player">{entry.player}</span>
+                        <span className="trick-player">{nameForSeat(entry.player)}</span>
                         <img
                           src={cardAssetUrl(entry.card)}
                           alt={formatCard(entry.card)} // Alt text describes the card
@@ -364,12 +366,12 @@ function App() {
                     <div key={index} className="trick-summary">
                       <div className="trick-header">
                         <strong>Trick {index + 1}</strong>
-                        <span>Winner: {trick.winner}</span>
+                        <span>Winner: {trick.winner ? nameForSeat(trick.winner) : '—'}</span>
                       </div>
                       <ul className="trick-cards">
                         {trick.cards.map((entry) => (
                           <li key={`${entry.player}-${cardKey(entry.card)}`} className="trick-card">
-                            <span className="trick-player">{entry.player}</span>
+                            <span className="trick-player">{nameForSeat(entry.player)}</span>
                             <img
                               src={cardAssetUrl(entry.card)}
                               alt={formatCard(entry.card)}

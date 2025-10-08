@@ -42,6 +42,8 @@ type ChatEntry = {
   when: number;
 };
 
+type RosterPayload = Partial<Record<PlayerId, { name: string }>>;
+
 const roomState = new Map<string, GameState>();
 const roomLogs = new Map<string, LogEntry[]>();
 const roomChats = new Map<string, ChatEntry[]>();
@@ -140,6 +142,7 @@ io.on('connection', (socket) => {
 
     const roster = ensureRoster(roomId);
     roster.set(player, { name, socketId: socket.id });
+    emitRoster(roomId);
 
     const state = roomState.get(roomId)!;
     socket.emit('snapshot', getSnapshot(state, player));
@@ -202,11 +205,12 @@ io.on('connection', (socket) => {
       return;
     }
     const { rank, suit } = data.data.card;
+    const suitLetter = String(suit).charAt(0).toUpperCase();
     const actor = getActorInfo(roomId, seat);
     const now = Date.now();
     const privateLog: LogEntry = {
       type: 'move',
-      text: `You discarded ${formatCard(rank, suit)}`,
+      text: `You discarded ${rank} of ${suitLetter}`,
       when: now,
       actor,
       private: true,
@@ -309,6 +313,7 @@ io.on('connection', (socket) => {
       if (roster.size === 0) {
         roomRosters.delete(roomId);
       }
+      emitRoster(roomId);
     }
   });
 });
@@ -409,6 +414,22 @@ function handSummaryLog(summary: HandScoreSummary, scores: GameState['scores']):
 function emitRoomLog(roomId: string, entry: LogEntry) {
   io.to(roomId).emit('log', entry);
   appendLog(roomId, entry);
+}
+
+function emitRoster(roomId: string) {
+  io.to(roomId).emit('roster', getRosterPayload(roomId));
+}
+
+function getRosterPayload(roomId: string): RosterPayload {
+  const roster = roomRosters.get(roomId);
+  if (!roster) {
+    return {};
+  }
+  const result: RosterPayload = {};
+  for (const [seat, info] of roster.entries()) {
+    result[seat] = { name: info.name };
+  }
+  return result;
 }
 
 function appendLog(roomId: string, entry: LogEntry) {
