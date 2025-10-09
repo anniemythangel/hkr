@@ -1,5 +1,10 @@
 import type { Card, Suit, PlayerId, Trick } from '@hooker/shared';
 
+export interface SeatTrickPlay {
+  seat: number;
+  card: Card;
+}
+
 export function cardEquals(a: Card, b: Card): boolean {
   return a.rank === b.rank && a.suit === b.suit;
 }
@@ -78,4 +83,31 @@ export function determineTrickWinner(cards: Trick['cards'], trump: Suit): Player
   }
 
   return best.player;
+}
+
+export function resolveTrick(plays: SeatTrickPlay[], ledSuit: Suit, trump: Suit): SeatTrickPlay {
+  if (plays.length === 0) {
+    throw new Error('Cannot resolve an empty trick');
+  }
+
+  const effectiveLed = effectiveSuit(plays[0].card, trump);
+  const ledToUse = ledSuit === effectiveLed ? ledSuit : effectiveLed;
+  let winner = plays[0];
+  let bestScore = -1;
+
+  for (const play of plays) {
+    const trumpScore = trumpStrength(play.card, trump);
+    const score =
+      trumpScore > 0
+        ? trumpScore
+        : effectiveSuit(play.card, trump) === ledToUse
+        ? ledStrength(play.card, ledToUse)
+        : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      winner = play;
+    }
+  }
+
+  return winner;
 }

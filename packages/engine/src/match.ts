@@ -11,7 +11,14 @@ import { GAME_CONFIGS, TEAM_LIST } from './constants';
 import { createDeck, shuffleDeck } from './deck';
 import { scoreHand } from './scoring';
 import { cardEquals, canFollowSuit, determineTrickWinner, effectiveSuit } from './trick';
-import { assignTeams, cloneHands, createEmptyHands, nextPlayer } from './utils';
+import {
+  assignTeams,
+  cloneHands,
+  createEmptyHands,
+  nextPlayer,
+  createSeededRng,
+  mapPlayers,
+} from './utils';
 import { GameState, MatchOptions, Result, TrickState } from './types';
 
 function getNextDeck(
@@ -126,6 +133,50 @@ function initialState(options: MatchOptions = {}): GameState {
 
 export function createMatch(options?: MatchOptions): GameState {
   return initialState(options);
+}
+
+export interface StartedHandPreview {
+  seating: PlayerId[];
+  dealer: PlayerId;
+  dealerSeatIndex: number;
+  initialOfferee: number;
+  kittyOfferee: number;
+  kitty: Card[];
+  handsBySeat: Card[][];
+  handsByPlayer: Record<PlayerId, Card[]>;
+}
+
+export function startHandForDealer(
+  dealerSeatIndex: number,
+  seed?: number,
+  options?: { gameIndex?: number },
+): StartedHandPreview {
+  const gameIndex = options?.gameIndex ?? 0;
+  const config = GAME_CONFIGS[gameIndex % GAME_CONFIGS.length];
+  const seating = [...config.seating];
+  const seatCount = seating.length;
+  const normalizedDealer = ((dealerSeatIndex % seatCount) + seatCount) % seatCount;
+  const dealer = seating[normalizedDealer];
+  const rng = seed === undefined ? Math.random : createSeededRng(seed);
+  const deck = shuffleDeck(createDeck(), rng);
+  const { hands, kitty, kittyOfferee } = dealHand(deck, dealer, seating);
+  const kittySeat = seating.indexOf(kittyOfferee);
+  if (kittySeat === -1) {
+    throw new Error('Kitty offeree is not seated');
+  }
+  const handsBySeat = seating.map((player) => [...hands[player]]);
+  const handsByPlayer = mapPlayers((player) => [...hands[player]]);
+
+  return {
+    seating,
+    dealer,
+    dealerSeatIndex: normalizedDealer,
+    initialOfferee: kittySeat,
+    kittyOfferee: kittySeat,
+    kitty: [...kitty],
+    handsBySeat,
+    handsByPlayer,
+  };
 }
 
 function startHand(state: GameState, options: MatchOptions = {}): GameState {
