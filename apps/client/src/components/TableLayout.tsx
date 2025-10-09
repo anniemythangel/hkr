@@ -171,17 +171,9 @@ export function TableLayout({
                   isDealer={snapshot.dealer === seat}
                   isActive={activeSeat === seat}
                   cardsRemaining={cardsRemaining}
+                  renderBodyWhenEmpty={!isSelf}
                 >
-                  {isSelf ? (
-                    <Hand
-                      cards={snapshot.selfHand}
-                      legalKeys={legalKeys}
-                      actionable={handActionable}
-                      phase={snapshot.phase}
-                      onDiscard={onDiscard}
-                      onPlay={onPlay}
-                    />
-                  ) : (
+                  {isSelf ? null : (
                     <div className="seat-card-backs" aria-hidden="true">
                       <span className="seat-card-count">{cardsRemaining}</span>
                       <span className="seat-card-label">cards</span>
@@ -191,6 +183,17 @@ export function TableLayout({
               </div>
             )
           })}
+        </div>
+
+        <div className="player-hand-rail">
+          <Hand
+            cards={snapshot.selfHand}
+            legalKeys={legalKeys}
+            actionable={handActionable}
+            phase={snapshot.phase}
+            onDiscard={onDiscard}
+            onPlay={onPlay}
+          />
         </div>
 
         <div className="table-aux-info">

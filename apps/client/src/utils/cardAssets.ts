@@ -32,3 +32,7 @@ export function cardAssetUrl(card: Card) {
   const suitKey = card.suit.charAt(0).toUpperCase() as keyof typeof suitLetter;
   return `/cards/${rankToAsset[card.rank]}${suitLetter[suitKey]}.svg`;
 }
+
+export function cardLabel(card: Card): string {
+  return `${card.rank} of ${suitFullLabel[card.suit]}`;
+}

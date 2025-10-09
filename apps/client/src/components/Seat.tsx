@@ -1,4 +1,5 @@
 import type { PlayerId } from '@hooker/shared';
+import { Children } from 'react';
 import type { ReactNode } from 'react';
 import DealerChip from './DealerChip';
 
@@ -10,6 +11,7 @@ interface SeatProps {
   isActive: boolean;
   cardsRemaining?: number;
   children?: ReactNode;
+  renderBodyWhenEmpty?: boolean;
 }
 
 export function Seat({
@@ -20,8 +22,11 @@ export function Seat({
   isActive,
   cardsRemaining,
   children,
+  renderBodyWhenEmpty = true,
 }: SeatProps) {
   const seatLabel = isSelf ? 'You' : `Seat ${seat}`;
+  const hasBodyContent = Children.count(children) > 0;
+  const shouldRenderBody = hasBodyContent || renderBodyWhenEmpty;
   return (
     <section
       className={`seat-panel${isSelf ? ' seat-panel-self' : ''}${isActive ? ' seat-panel-active' : ''}`}
@@ -48,7 +53,9 @@ export function Seat({
           {cardsRemaining} card{cardsRemaining === 1 ? '' : 's'} remaining
         </p>
       ) : null}
-      {children ? <div className="seat-panel-body">{children}</div> : null}
+      {shouldRenderBody ? (
+        <div className="seat-panel-body">{hasBodyContent ? children : null}</div>
+      ) : null}
     </section>
   );
 }

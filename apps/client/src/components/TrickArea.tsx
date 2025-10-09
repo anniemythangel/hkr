@@ -60,7 +60,7 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
           </p>
         ) : null}
       </header>
-      <div className="trick-area-table" role="list">
+      <div className="trick-ring" role="list">
         {slots.map(({ seat, entry, position }) => {
           const name = nameForSeat(seat);
           const collecting = collectingSeat === seat;
@@ -69,8 +69,9 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
           return (
             <div
               key={seat}
-              className={`trick-slot trick-slot-${position}${occupied ? ' trick-slot-filled' : ''}${
-                collecting ? ' trick-slot-collecting' : ''
+              className={`trick-ring-slot trick-ring-slot-${position}${
+                occupied ? ' trick-ring-slot-filled' : ''
+              }${collecting ? ' trick-ring-slot-collecting' : ''}
               }`}
               role={occupied ? 'listitem' : undefined}
               aria-label={occupied ? `${name} played ${cardLabel}` : `${name} has not played yet`}
@@ -87,9 +88,7 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
                     draggable={false}
                   />
                 </div>
-              ) : (
-                <div className="trick-slot-placeholder" aria-hidden="true" />
-              )}
+              ) : null}
             </div>
           );
         })}
