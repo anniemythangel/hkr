@@ -167,7 +167,7 @@ export function TableLayout({
                     name={seatName}
                     isSelf={isSelf}
                     isDealer={dealerRevealed && snapshot.dealer === seat}
-                    isActive={activeSeat === seat}
+                    isActive={dealerRevealed && activeSeat === seat}
                     cardsRemaining={cardsRemaining}
                     renderBodyWhenEmpty={!isSelf}
                   >
