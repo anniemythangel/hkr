@@ -11,7 +11,7 @@ import {
   getSnapshot,
   effectiveSuit,
 } from '@hooker/engine';
-import { Card, PlayerId } from '@hooker/shared';
+import { Card, GAME_ROTATION, PlayerId } from '@hooker/shared';
 import type { GameState, Result } from '@hooker/engine';
 
 const SUIT_MAP = {
@@ -217,6 +217,42 @@ describe('kitty flow and forced accept', () => {
       tricksWon: { NorthSouth: 4, EastWest: 1 },
     });
     expect(state.scores).toEqual({ NorthSouth: 2, EastWest: 0 });
+  });
+});
+
+describe('match rotation summaries', () => {
+  it('records team assignments and honors across three games', () => {
+    let state = createMatch();
+    expect(state.gameResults).toHaveLength(0);
+
+    for (let index = 0; index < GAME_ROTATION.length; index += 1) {
+      const config = GAME_ROTATION[index];
+      state = {
+        ...state,
+        phase: 'GameOver',
+        gameIndex: index,
+        seating: [...config.seating],
+        teams: {
+          NorthSouth: [...config.teams.NorthSouth] as [PlayerId, PlayerId],
+          EastWest: [...config.teams.EastWest] as [PlayerId, PlayerId],
+        },
+        scores: { NorthSouth: 10, EastWest: 4 },
+      };
+      state = advanceState(state);
+    }
+
+    expect(state.phase).toBe('MatchOver');
+    expect(state.gameResults).toHaveLength(GAME_ROTATION.length);
+
+    const resultsByIndex = new Map(state.gameResults.map((entry) => [entry.gameIndex, entry]));
+    GAME_ROTATION.forEach((config, index) => {
+      const result = resultsByIndex.get(index);
+      expect(result).toBeDefined();
+      expect(result?.seating).toEqual(config.seating);
+      expect(result?.teams).toEqual(config.teams);
+    });
+
+    expect(state.playerGameWins).toEqual({ A: 3, B: 1, C: 1, D: 1 });
   });
 });
 
