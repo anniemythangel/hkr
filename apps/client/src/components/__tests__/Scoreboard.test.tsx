@@ -91,6 +91,7 @@ describe('Scoreboard', () => {
     expect(html).toContain('Game 1')
     expect(html).toContain('Game 2')
     expect(html).toContain('Game 3')
+    expect(html).toContain('Show Details')
   })
 
   it('shows completed games with results mid-match', () => {
