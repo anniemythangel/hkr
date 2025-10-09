@@ -116,6 +116,7 @@ export function TableLayout({
   const activeAceDraw = snapshot.aceDraw
   const showAceDraw = Boolean(activeAceDraw && !completedAceDraws[activeAceDraw.gameIndex])
   const dealerRevealed = !showAceDraw
+  const showKittyInfo = snapshot.kittySize > 0 || snapshot.phase === 'KittyDecision'
 
   const markAceDrawComplete = useCallback((gameIndex: number) => {
     setCompletedAceDraws((previous) => {
@@ -157,8 +158,17 @@ export function TableLayout({
         ) : null}
         <div className="table-ring">
           <div className="table-ring-grid">
-            {scoreboard ? (
+            {(scoreboard || showKittyInfo) ? (
               <div className="table-stage-panel table-stage-panel-top-left" role="complementary">
+                {showKittyInfo ? (
+                  <div className="table-aux-info" aria-label="Kitty information">
+                    <KittyTop card={snapshot.kittyTopCard ?? null} />
+                    <div className="table-aux-item" aria-label={`Kitty contains ${snapshot.kittySize} card${snapshot.kittySize === 1 ? '' : 's'}`}>
+                      <span className="table-aux-label">Kitty cards</span>
+                      <span className="table-aux-value">{snapshot.kittySize}</span>
+                    </div>
+                  </div>
+                ) : null}
                 {scoreboard}
               </div>
             ) : null}
