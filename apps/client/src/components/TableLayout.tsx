@@ -105,9 +105,14 @@ export function TableLayout({
               </div>
             ) : null}
 
-            {(consolePanel || chatBox) ? (
-              <div className="table-stage-panel table-stage-panel-right" role="complementary">
+            {consolePanel ? (
+              <div className="table-stage-panel table-stage-panel-top-right" role="complementary">
                 {consolePanel}
+              </div>
+            ) : null}
+
+            {chatBox ? (
+              <div className="table-stage-panel table-stage-panel-bottom-right" role="complementary">
                 {chatBox}
               </div>
             ) : null}
