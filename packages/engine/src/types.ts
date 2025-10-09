@@ -33,7 +33,7 @@ export interface GameState {
   gameResults: { gameIndex: number; winner: TeamId; scores: Record<TeamId, number> }[];
   playerGameWins: Record<PlayerId, number>;
   remainingDecks: Card[][];
-  aceDeck?: Card[];
+  aceDeck: Card[] | null;
 }
 
 export type Result<T> = { ok: true; state: T } | { ok: false; error: string };

@@ -70,6 +70,21 @@ const handDeck = buildDeck([
   ['J', 'S'],
 ]);
 
+const aceDrawDeck = (() => {
+  const prefix = buildDeck([
+    ['9', 'C'],
+    ['9', 'D'],
+    ['9', 'H'],
+    ['9', 'S'],
+    ['10', 'C'],
+    ['A', 'D'],
+  ]);
+  const remainder = createDeck().filter(
+    (entry) => !prefix.some((pref) => pref.rank === entry.rank && pref.suit === entry.suit),
+  );
+  return [...prefix, ...remainder];
+})();
+
 describe('deck creation', () => {
   it('creates 24 unique cards', () => {
     const deck = createDeck();
@@ -90,6 +105,36 @@ describe('effective suit', () => {
     const trump = 'hearts';
     const nassih = card('J', 'H');
     expect(effectiveSuit(nassih, trump)).toBe('hearts');
+  });
+});
+
+describe('ace draw snapshots', () => {
+  it('exposes the dealer draw order in the snapshot', () => {
+    const state = createMatch({ decks: [aceDrawDeck, handDeck] });
+    const snapshot = getSnapshot(state, 'A');
+    expect(snapshot.aceDraw).toEqual({
+      gameIndex: 0,
+      dealer: 'C',
+      draws: [
+        { player: 'A', card: card('9', 'C') },
+        { player: 'C', card: card('9', 'D') },
+        { player: 'B', card: card('9', 'H') },
+        { player: 'D', card: card('9', 'S') },
+        { player: 'A', card: card('10', 'C') },
+        { player: 'C', card: card('A', 'D') },
+      ],
+    });
+  });
+
+  it('clears the ace deck after advancing beyond a hand score', () => {
+    const state = createMatch({ decks: [aceDrawDeck, handDeck] });
+    const handScoreState = {
+      ...state,
+      phase: 'HandScore' as const,
+      scores: { NorthSouth: 5, EastWest: 2 },
+    };
+    const advanced = advanceState(handScoreState);
+    expect(advanced.aceDeck).toBeNull();
   });
 });
 

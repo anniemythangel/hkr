@@ -732,6 +732,33 @@ button:disabled {
   color: rgba(226, 232, 240, 0.8);
 }
 
+.ace-draw {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+  text-align: center;
+}
+
+.ace-draw-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.ace-draw-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.ace-draw-message {
+  margin: 0;
+  font-size: 0.95rem;
+  color: rgba(226, 232, 240, 0.85);
+  min-height: 1.2rem;
+}
+
 .trick-ring {
   position: relative;
   margin: 0 auto;
@@ -792,6 +819,17 @@ button:disabled {
   box-shadow: 0 12px 24px rgba(15, 118, 110, 0.35);
 }
 
+.ace-draw-slot-latest {
+  border-color: rgba(94, 234, 212, 0.75);
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.4), 0 14px 28px rgba(13, 148, 136, 0.45);
+}
+
+.ace-draw-slot-ace {
+  border-color: rgba(253, 224, 71, 0.75);
+  background: rgba(253, 224, 71, 0.16);
+  box-shadow: 0 0 0 2px rgba(253, 224, 71, 0.35), 0 18px 36px rgba(202, 138, 4, 0.4);
+}
+
 .trick-ring-slot-collecting .trick-card {
   animation: collect 0.6s ease forwards;
 }
@@ -807,6 +845,14 @@ button:disabled {
   border-radius: 0.7rem;
   box-shadow: 0 10px 20px rgba(15, 118, 110, 0.4);
   animation: fade-in 0.25s ease;
+}
+
+.ace-draw-card-latest {
+  animation: ace-pop 0.4s ease;
+}
+
+.ace-draw-card-ace {
+  box-shadow: 0 14px 32px rgba(250, 204, 21, 0.45), 0 0 18px rgba(253, 224, 71, 0.4);
 }
 
 .badge {
@@ -1232,6 +1278,18 @@ button:disabled {
   100% {
     transform: translateY(12px) scale(0.85);
     opacity: 0;
+  }
+}
+
+@keyframes ace-pop {
+  0% {
+    transform: scale(0.9);
+  }
+  60% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
   }
 }
 
