@@ -136,7 +136,7 @@ io.on('connection', (socket) => {
     socket.join(roomId);
 
     if (!roomState.has(roomId)) {
-      roomState.set(roomId, autoAdvance(createMatch()));
+      roomState.set(roomId, autoAdvance(createMatch(), roomId));
     }
 
     const roster = ensureRoster(roomId);
@@ -192,7 +192,7 @@ io.on('connection', (socket) => {
     }
     const roomId = socket.data.roomId;
     const seat = socket.data.player;
-    const previousHand = [...(roomState.get(roomId)?.hand.hands[seat] ?? [])];
+    const previousHand = [...(roomState.get(roomId)?.hand.hands[seat as PlayerId] ?? [])];
     act(roomId, (s) => handleDiscard(s, seat, data.data.card as any), {
       actPlayer: seat,
       onSuccess: (_, current) => {
@@ -308,12 +308,16 @@ io.on('connection', (socket) => {
   });
 });
 
-function autoAdvance(state: GameState): GameState {
+function autoAdvance(state: GameState, roomId: string): GameState {
   let current = state;
   while (true) {
     const next = advanceState(current);
     if (next.phase === current.phase) {
       return current;
+    }
+    const logs = collectLogs(roomId, current, next, next);
+    for (const entry of logs) {
+      emitRoomLog(roomId, entry);
     }
     current = next;
   }
@@ -342,7 +346,7 @@ function act(
   }
 
   const log = options.onSuccess?.(previous, result.state);
-  const advanced = autoAdvance(result.state);
+  const advanced = autoAdvance(result.state, roomId);
   roomState.set(roomId, advanced);
   broadcastSnapshot(roomId, advanced);
 
@@ -403,6 +407,25 @@ function collectLogs(
         when: Date.now(),
         actor: SYSTEM_ACTOR,
       });
+    }
+  }
+
+  if (advanced.phase === 'AceDraw') {
+    const snapshot = getSnapshot(advanced, 'A');
+    if (snapshot.aceDraw) {
+      for (const draw of snapshot.aceDraw.draws) {
+        const actor = getActorInfo(roomId, draw.player);
+        const text =
+          draw.card.rank === 'A'
+            ? `${actor.name} drew Ace of ${draw.card.suit}. They are the dealer`
+            : `${actor.name} drew: ${draw.card.rank} of ${draw.card.suit}`;
+        entries.push({
+          type: 'system',
+          text,
+          when: Date.now(),
+          actor,
+        });
+      }
     }
   }
 

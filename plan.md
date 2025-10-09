@@ -1,45 +1,12 @@
-# Objective: Modify styles.css to fix the critical layout overflow.
+# Action Console and Real-time Logging Plan
 
-## Plan
+**Objective:** Ensure all game events appear in the action console in real-time and in the correct order, without overwhelming players with irrelevant history.
 
-### Step 1: Make the main page container a flexible column.
-- **File:** `styles.css`
-- **Selector:** `.page`
-- **Action:** Add the following properties:
-  ```css
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100vh - 4rem); /* Full viewport height minus vertical padding */
-  ```
+**Analysis:**
+- **Root Cause:** The "ace draw" logs are being incorrectly generated and sent to clients *after* the `aceDraw` phase has completed, causing them to appear out of order and to be dumped on newly joining players.
+- The previous attempts to fix this were insufficient because they didn't address the core problem: the logs were being generated at the wrong time.
 
-### Step 2: Make the main table area flexible so it can grow and shrink.
-- **File:** `styles.css`
-- **Selector:** `.felt-bg`
-- **Action:** Add the following property:
-  ```css
-  flex: 1;
-  ```
-
-### Step 3: Drastically reduce the table's minimum height.
-- **File:** `styles.css`
-- **Selector:** `.table-ring`
-- **Action:** Replace `min-height: clamp(600px, 70vh, 800px);` with `min-height: clamp(400px, 60vh, 700px);`.
-
-### Step 4: Reduce the minimum width of the side column in the top grid.
-- **File:** `styles.css`
-- **Selector:** `.page-top-grid`
-- **Action:** Replace `grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr);` with `grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);`.
-
-### Step 5: Reduce the minimum width of the side column in the top grid (media query).
-- **File:** `styles.css`
-- **Selector:** `.page-top-grid` inside `@media (max-width: 1200px)`
-- **Action:** Replace `grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);` with `grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);`.
-
-## Progress
-- [x] All steps completed.
-
-### Step 6: Remove the rigid min-height from the table ring.
-- **File:** `styles.css`
-- **Selector:** `.table-ring`
-- **Action:** Remove `min-height: clamp(400px, 60vh, 700px);`.
-- **Status:** [x] Completed
+**Plan:**
+1.  **Isolate Ace Draw Logging:** Modify the `collectLogs` function in `apps/server/src/index.ts` to only generate "ace draw" logs when the game is in the `aceDraw` phase.
+2.  **Real-time Logging in `autoAdvance`:** Re-implement the real-time logging inside the `autoAdvance` function. This will now correctly emit the "ace draw" logs *only* during the `aceDraw` phase transition.
+3.  **Code Cleanup:** Remove the now-unnecessary `transient` flag from the `LogEntry` type and related logic.

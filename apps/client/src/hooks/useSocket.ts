@@ -179,7 +179,6 @@ export function useSocket(defaultServerUrl: string) {
 
       socket.on('errorMessage', (message: string) => {
         setError(message);
-        appendLog({ type: 'system', text: message, when: Date.now(), actor: SYSTEM_ACTOR });
       });
 
       socket.on('log', (entry: ConsoleEntry) => {
@@ -190,22 +189,22 @@ export function useSocket(defaultServerUrl: string) {
         appendChat(entry);
       });
 
-      socket.io.on('reconnect_attempt', (attempt) => {
-        reconnectingRef.current = true;
-        appendLog({
-          type: 'system',
-          text: `Reconnecting to server… (attempt ${attempt})`,
-          when: Date.now(),
-          actor: SYSTEM_ACTOR,
-        });
-      });
-
-      socket.io.on('connect_error', (err) => {
+      socket.on('connect_error', (err) => {
         setStatus('connecting');
         setError(err.message);
         appendLog({
           type: 'system',
           text: `Connection error: ${err.message}`,
+          when: Date.now(),
+          actor: SYSTEM_ACTOR,
+        });
+      });
+
+      socket.io.on('reconnect_attempt', (attempt) => {
+        reconnectingRef.current = true;
+        appendLog({
+          type: 'system',
+          text: `Reconnecting to server… (attempt ${attempt})`,
           when: Date.now(),
           actor: SYSTEM_ACTOR,
         });

@@ -50,7 +50,9 @@ function determineDealer(deck: Card[], seating: PlayerId[]): PlayerId {
   for (let index = 0; index < deck.length; index += 1) {
     const card = deck[index];
     const player = seating[index % seating.length];
+    console.log(`[Player ${player}] drew: ${card.rank} of ${card.suit}`);
     if (card.rank === 'A') {
+      console.log(`[Player ${player}] drew: Ace of ${card.suit}. They are the dealer`);
       return player;
     }
   }

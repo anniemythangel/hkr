@@ -80,25 +80,10 @@ export function AceDrawAnimation({ draw, seatingOrder, nameForSeat, onComplete }
     loggedCount.current = newCount
   }, [draw.dealer, nameForSeat, revealedDraws])
 
-  const message = useMemo(() => {
-    if (!revealedDraws.length) {
-      return 'Drawing cards to determine the dealer'
-    }
-    if (!aceDrawn || !finalDraw) {
-      const { player, card } = revealedDraws[revealedDraws.length - 1]
-      return `${nameForSeat(player)} drew the ${card.rank} of ${suitFull(card.suit)}`
-    }
-    const dealerName = nameForSeat(draw.dealer)
-    return `${dealerName} will deal after drawing the ${finalDraw.card.rank} of ${suitFull(finalDraw.card.suit)}`
-  }, [aceDrawn, finalDraw, nameForSeat, revealedDraws, draw.dealer])
-
   return (
     <section className="ace-draw" aria-label="Determining dealer" role="region">
       <header className="ace-draw-header">
         <h3 className="ace-draw-title">Determining dealer</h3>
-        <p className="ace-draw-message" role="status" aria-live="polite">
-          {message}
-        </p>
       </header>
       <div className="trick-ring" role="list">
         {seatingOrder.map((seat, index) => {
