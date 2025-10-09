@@ -1271,6 +1271,111 @@ button:disabled {
   gap: 0.3rem;
 }
 
+.scoreboard-summary {
+  background: rgba(2, 22, 16, 0.7);
+  border: 1px solid rgba(94, 234, 212, 0.25);
+  border-radius: 0.9rem;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.scoreboard-summary-title {
+  margin-bottom: 0.25rem;
+}
+
+.scoreboard-summary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+.scoreboard-summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(3, 30, 21, 0.6);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.scoreboard-summary-label {
+  font-weight: 600;
+}
+
+.scoreboard-summary-score {
+  font-weight: 700;
+  font-size: 1rem;
+  color: rgba(190, 242, 100, 0.95);
+}
+
+.scoreboard-summary-target {
+  margin-left: 0.1rem;
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.scoreboard-toggle-wrapper {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.scoreboard-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(94, 234, 212, 0.4);
+  background: rgba(94, 234, 212, 0.15);
+  color: rgba(226, 232, 240, 0.95);
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.scoreboard-toggle:hover,
+.scoreboard-toggle:focus-visible {
+  background: rgba(94, 234, 212, 0.25);
+}
+
+.scoreboard-toggle:focus-visible {
+  outline: 2px solid rgba(94, 234, 212, 0.65);
+  outline-offset: 2px;
+}
+
+.scoreboard-toggle:active {
+  transform: translateY(1px);
+}
+
+.scoreboard-toggle-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.scoreboard-details {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-0.25rem);
+  transition: max-height 0.35s ease, opacity 0.25s ease, transform 0.35s ease;
+  pointer-events: none;
+}
+
+.scoreboard-details--expanded {
+  max-height: 2000px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
 .scoreboard-match-header {
   display: flex;
   justify-content: space-between;

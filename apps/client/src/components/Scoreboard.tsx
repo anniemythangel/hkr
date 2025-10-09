@@ -1,3 +1,4 @@
+import { useId, useState } from 'react';
 import type {
   GameResultSummary,
   HandScoreSummary,
@@ -75,6 +76,8 @@ export function Scoreboard({
   lastHandSummary,
   match,
 }: ScoreboardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const detailsId = useId();
   const lastHandText = formatLastHand(lastHandSummary);
   const tricksCompleted = trickIndex;
   const currentHandStatus = `Tricks completed: ${tricksCompleted} / ${HAND_TRICK_COUNT}`;
@@ -116,6 +119,9 @@ export function Scoreboard({
     }
   }
 
+  const toggleLabel = isExpanded ? 'Hide Details' : 'Show Details';
+  const toggleIcon = isExpanded ? '▴' : '▾';
+
   return (
     <section className="scoreboard" aria-label="Scoreboard">
       <header className="scoreboard-header">
@@ -134,73 +140,114 @@ export function Scoreboard({
         {lastHandText ? <p className="scoreboard-last-hand">{lastHandText}</p> : null}
       </header>
 
-      <div className="scoreboard-match-summary" aria-live="polite">
-        <h3 className="scoreboard-section-title">Match Rotation</h3>
-        <ol className="scoreboard-match-list">
-          {matchGames.map((game) => (
-            <li
-              key={game.gameIndex}
-              className={`scoreboard-match-item scoreboard-match-item--${game.status}`}
-            >
-              <div className="scoreboard-match-item-header">
-                <span className="scoreboard-match-item-label">Game {game.gameIndex + 1}</span>
-                {game.result ? (
-                  <span className="scoreboard-match-item-result">
-                    {teamLabel(game.result.winner)} won {formatScore(game.result.scores)}
-                  </span>
-                ) : (
-                  <span className="scoreboard-match-item-status">{game.status}</span>
-                )}
-              </div>
-              <div className="scoreboard-match-item-teams">
-                {game.teams.map((team) => (
-                  <div key={team.id} className="scoreboard-match-team">
-                    <span className="scoreboard-match-team-label">{team.label}:</span>{' '}
-                    <span className="scoreboard-match-team-members">{formatMembers(team.members)}</span>
-                  </div>
-                ))}
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      {honors.length > 0 ? (
-        <div className="scoreboard-honors" aria-live="polite">
-          <h3 className="scoreboard-section-title">Honors</h3>
-          <ul className="scoreboard-honors-list">
-            {honors.map((entry) => (
-              <li key={entry.label} className="scoreboard-honor">
-                <span className="scoreboard-honor-label">{entry.label}:</span>{' '}
-                <span className="scoreboard-honor-players">{formatMembers(entry.players)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <ul className="scoreboard-list">
-        {teams.map((team) => {
-          const score = scores[team.id] ?? 0;
-          return (
-            <li key={team.id} className="scoreboard-team" aria-label={`Team ${team.label}`}>
-              <div className="scoreboard-team-header">
-                <span className="scoreboard-team-label">{team.label}</span>
-                <span className="scoreboard-team-score" aria-live="polite">
+      <div className="scoreboard-summary" aria-live="polite">
+        <h3 className="scoreboard-section-title scoreboard-summary-title">Match Score</h3>
+        <ul className="scoreboard-summary-list">
+          {teams.map((team) => {
+            const score = scores[team.id] ?? 0;
+            return (
+              <li key={team.id} className="scoreboard-summary-item">
+                <span className="scoreboard-summary-label">{team.label}</span>
+                <span className="scoreboard-summary-score">
                   {score}
-                  <span className="scoreboard-team-target" aria-hidden="true">
+                  <span aria-hidden="true" className="scoreboard-summary-target">
                     /{MATCH_GAME_TARGET}
                   </span>
                 </span>
-              </div>
-              <div className="scoreboard-team-members">{formatMembers(team.members)}</div>
-              <div className="scoreboard-team-tricks" role="status" aria-live="polite">
-                Tricks this hand: {team.handTricks}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="scoreboard-toggle-wrapper">
+        <button
+          type="button"
+          className="scoreboard-toggle"
+          onClick={() => setIsExpanded((current) => !current)}
+          aria-expanded={isExpanded}
+          aria-controls={detailsId}
+        >
+          <span className="scoreboard-toggle-text">{toggleLabel}</span>
+          <span aria-hidden="true" className="scoreboard-toggle-icon">
+            {toggleIcon}
+          </span>
+        </button>
+      </div>
+
+      <div
+        id={detailsId}
+        className={`scoreboard-details${isExpanded ? ' scoreboard-details--expanded' : ''}`}
+        aria-hidden={!isExpanded}
+      >
+        <div className="scoreboard-match-summary" aria-live="polite">
+          <h3 className="scoreboard-section-title">Match Rotation</h3>
+          <ol className="scoreboard-match-list">
+            {matchGames.map((game) => (
+              <li
+                key={game.gameIndex}
+                className={`scoreboard-match-item scoreboard-match-item--${game.status}`}
+              >
+                <div className="scoreboard-match-item-header">
+                  <span className="scoreboard-match-item-label">Game {game.gameIndex + 1}</span>
+                  {game.result ? (
+                    <span className="scoreboard-match-item-result">
+                      {teamLabel(game.result.winner)} won {formatScore(game.result.scores)}
+                    </span>
+                  ) : (
+                    <span className="scoreboard-match-item-status">{game.status}</span>
+                  )}
+                </div>
+                <div className="scoreboard-match-item-teams">
+                  {game.teams.map((team) => (
+                    <div key={team.id} className="scoreboard-match-team">
+                      <span className="scoreboard-match-team-label">{team.label}:</span>{' '}
+                      <span className="scoreboard-match-team-members">{formatMembers(team.members)}</span>
+                    </div>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {honors.length > 0 ? (
+          <div className="scoreboard-honors" aria-live="polite">
+            <h3 className="scoreboard-section-title">Honors</h3>
+            <ul className="scoreboard-honors-list">
+              {honors.map((entry) => (
+                <li key={entry.label} className="scoreboard-honor">
+                  <span className="scoreboard-honor-label">{entry.label}:</span>{' '}
+                  <span className="scoreboard-honor-players">{formatMembers(entry.players)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        <ul className="scoreboard-list">
+          {teams.map((team) => {
+            const score = scores[team.id] ?? 0;
+            return (
+              <li key={team.id} className="scoreboard-team" aria-label={`Team ${team.label}`}>
+                <div className="scoreboard-team-header">
+                  <span className="scoreboard-team-label">{team.label}</span>
+                  <span className="scoreboard-team-score" aria-live="polite">
+                    {score}
+                    <span className="scoreboard-team-target" aria-hidden="true">
+                      /{MATCH_GAME_TARGET}
+                    </span>
+                  </span>
+                </div>
+                <div className="scoreboard-team-members">{formatMembers(team.members)}</div>
+                <div className="scoreboard-team-tricks" role="status" aria-live="polite">
+                  Tricks this hand: {team.handTricks}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </section>
   );
 }
