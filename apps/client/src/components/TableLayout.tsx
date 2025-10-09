@@ -137,6 +137,14 @@ export function TableLayout({
   const canDeclareTrump = snapshot.phase === 'TrumpDeclaration' && snapshot.dealer === playerId
   const canDiscard = snapshot.phase === 'Discard' && snapshot.acceptor === playerId
   const showActionRow = canAcceptKitty || canDeclareTrump || canDiscard
+  const kittyCountCaption =
+    snapshot.kittySize === 0
+      ? 'Kitty empty'
+      : `${snapshot.kittySize} card${snapshot.kittySize === 1 ? '' : 's'} in kitty`
+  const kittySummaryLabel =
+    snapshot.kittySize === 0
+      ? 'Kitty summary: kitty empty'
+      : `Kitty summary: ${snapshot.kittySize} card${snapshot.kittySize === 1 ? '' : 's'} in kitty`
 
   return (
     <div className="table-layout" aria-label="Card table layout">
@@ -158,17 +166,8 @@ export function TableLayout({
         ) : null}
         <div className="table-ring">
           <div className="table-ring-grid">
-            {(scoreboard || showKittyInfo) ? (
+            {scoreboard ? (
               <div className="table-stage-panel table-stage-panel-top-left" role="complementary">
-                {showKittyInfo ? (
-                  <div className="table-aux-info" aria-label="Kitty information">
-                    <KittyTop card={snapshot.kittyTopCard ?? null} />
-                    <div className="table-aux-item" aria-label={`Kitty contains ${snapshot.kittySize} card${snapshot.kittySize === 1 ? '' : 's'}`}>
-                      <span className="table-aux-label">Kitty cards</span>
-                      <span className="table-aux-value">{snapshot.kittySize}</span>
-                    </div>
-                  </div>
-                ) : null}
                 {scoreboard}
               </div>
             ) : null}
@@ -246,14 +245,22 @@ export function TableLayout({
         </div>
 
         <div className="player-hand-rail">
-          <Hand
-            cards={snapshot.selfHand}
-            legalKeys={legalKeys}
-            actionable={handActionable}
-            phase={snapshot.phase}
-            onDiscard={onDiscard}
-            onPlay={onPlay}
-          />
+          <div className="player-hand-wrap">
+            <Hand
+              cards={snapshot.selfHand}
+              legalKeys={legalKeys}
+              actionable={handActionable}
+              phase={snapshot.phase}
+              onDiscard={onDiscard}
+              onPlay={onPlay}
+            />
+          </div>
+          {showKittyInfo ? (
+            <div className="kitty-top-pocket" aria-label={kittySummaryLabel}>
+              <KittyTop card={snapshot.kittyTopCard ?? null} />
+              <span className="kitty-top-caption subtle">{kittyCountCaption}</span>
+            </div>
+          ) : null}
         </div>
 
         {showActionRow ? (

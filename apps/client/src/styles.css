@@ -505,7 +505,7 @@ button:disabled {
 }
 
 .kitty-top {
-  padding-right: 0.5rem;
+  width: 100%;
 }
 
 .kitty-top .card-img {
@@ -685,28 +685,85 @@ button:disabled {
   padding: 0.6rem 1rem 1rem;
   width: 100%;
   display: flex;
+  align-items: flex-end;
   justify-content: center;
+  gap: clamp(0.75rem, 1.8vw, 1.5rem);
   border-top: 1px solid rgba(148, 197, 166, 0.18);
   background: linear-gradient(180deg, rgba(3, 22, 17, 0) 0%, rgba(3, 22, 17, 0.75) 40%, rgba(2, 18, 13, 0.85) 100%);
   backdrop-filter: blur(6px);
   box-shadow: inset 0 1px 0 rgba(9, 46, 33, 0.35);
+}
+
+.player-hand-wrap {
+  flex: 1;
+  display: flex;
+  justify-content: center;
   overflow-x: auto;
 }
 
-.player-hand-rail .hand {
+.player-hand-wrap .hand {
   flex-wrap: nowrap;
   gap: clamp(0.3rem, 0.8vw, 0.45rem);
   justify-content: flex-start;
   min-width: fit-content;
 }
 
-.player-hand-rail::-webkit-scrollbar {
+.player-hand-wrap::-webkit-scrollbar {
   height: 8px;
 }
 
-.player-hand-rail::-webkit-scrollbar-thumb {
+.player-hand-wrap::-webkit-scrollbar-thumb {
   background: rgba(94, 234, 212, 0.35);
   border-radius: 999px;
+}
+
+.kitty-top-pocket {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.8rem 0.8rem;
+  border-radius: 0.9rem;
+  background: rgba(3, 22, 17, 0.78);
+  border: 1px solid rgba(148, 197, 166, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(9, 46, 33, 0.28), 0 8px 18px rgba(2, 20, 14, 0.55);
+  min-width: clamp(110px, 14vw, 160px);
+}
+
+.kitty-top-pocket .table-aux-item {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  text-align: center;
+}
+
+.kitty-top-pocket .table-aux-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.kitty-top-pocket .card-img {
+  width: clamp(52px, 6vw, 78px);
+  height: clamp(78px, 10vw, 118px);
+  box-shadow: 0 14px 28px rgba(15, 118, 110, 0.35);
+}
+
+.kitty-top-pocket .table-aux-value {
+  font-size: 0.85rem;
+}
+
+.kitty-top-caption {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: rgba(226, 232, 240, 0.68);
+  text-align: center;
 }
 
 .hand {
