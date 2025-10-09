@@ -198,7 +198,7 @@ button:disabled {
   overflow: hidden;
   border: 1px solid rgba(94, 234, 212, 0.2);
   box-shadow: inset 0 0 0 1px rgba(6, 47, 33, 0.5), 0 32px 48px rgba(4, 17, 12, 0.55);
-  min-height: clamp(520px, 78vh, 900px);
+  min-height: clamp(480px, 72vh, 820px);
 }
 
 .felt-bg::after {
@@ -292,16 +292,35 @@ button:disabled {
 
 .table-ring {
   flex: 1;
-  padding: clamp(1.75rem, 6vw, 3.5rem);
-  min-height: clamp(420px, 58vh, 680px);
+  padding: clamp(1.5rem, 5vw, 3rem);
+  min-height: clamp(340px, 52vh, 620px);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.table-ring-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, auto));
+  gap: clamp(1rem, 3vw, 1.75rem);
+  align-items: center;
+  justify-items: center;
+  width: 100%;
+}
+
+.table-ring-center {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
 .table-ring-surface {
   position: relative;
-  width: min(100%, 680px);
+  width: min(100%, 560px);
   aspect-ratio: 4 / 3;
   border-radius: 50%;
   display: flex;
@@ -331,8 +350,8 @@ button:disabled {
 .table-seat {
   display: flex;
   justify-content: center;
-  width: min(42%, 260px);
-  max-width: 300px;
+  width: min(38%, 240px);
+  max-width: 280px;
 }
 
 .table-seat-top {
@@ -901,6 +920,92 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.trick-history-panel {
+  background: rgba(3, 26, 19, 0.75);
+  border: 1px solid rgba(148, 197, 166, 0.25);
+  border-radius: 1.1rem;
+  padding: 1rem 1.2rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.trick-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.trick-history-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.trick-history-subtle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.68);
+}
+
+.trick-history-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.trick-history-head {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.trick-history-player {
+  text-align: center;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(226, 232, 240, 0.62);
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(148, 197, 166, 0.25);
+}
+
+.trick-history-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.trick-history-row {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.35rem;
+  border-radius: 0.8rem;
+  background: rgba(2, 18, 13, 0.55);
+  border: 1px solid rgba(148, 197, 166, 0.2);
+}
+
+.trick-history-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.35rem;
+  border-radius: 0.65rem;
+  background: rgba(3, 30, 21, 0.65);
+  border: 1px solid rgba(148, 197, 166, 0.25);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  min-height: 2.1rem;
+}
+
+.trick-history-card-winner {
+  border-color: rgba(163, 230, 53, 0.55);
+  box-shadow: 0 0 0 1px rgba(163, 230, 53, 0.35);
+  background: rgba(22, 101, 52, 0.55);
+  color: #e4f9c2;
 }
 
 .tabbed-panel {
