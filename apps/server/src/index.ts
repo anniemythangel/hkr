@@ -10,7 +10,7 @@ import {
   handlePlayCard,
   advanceState,
 } from '@hooker/engine';
-import { PlayerId } from '@hooker/shared';
+import { GAME_ROTATION, PLAYERS, PlayerId, TEAMS } from '@hooker/shared';
 import type { HandScoreSummary } from '@hooker/shared';
 import type { GameState } from '@hooker/engine';
 
@@ -382,6 +382,14 @@ function collectLogs(
     entries.push(initial);
   }
 
+  const teamLabel = (team: keyof GameState['scores']) =>
+    team === 'NorthSouth' ? 'North / South' : 'East / West';
+  const formatPlayer = (player: PlayerId) => {
+    const info = getActorInfo(roomId, player);
+    return `${info.name} (${player})`;
+  };
+  const formatScore = (scores: GameState['scores']) => `${scores.NorthSouth}-${scores.EastWest}`;
+
   if (updated.hand.completedTricks.length > previous.hand.completedTricks.length) {
     const trick = updated.hand.completedTricks[updated.hand.completedTricks.length - 1];
     const winnerActor = getActorInfo(roomId, trick.winner ?? null);
@@ -398,12 +406,41 @@ function collectLogs(
     entries.push(handSummaryLog(summary, advanced.scores));
   }
 
+  if (previous.phase === 'GameOver' && updated.phase === 'MatchSetup') {
+    const totalGames = GAME_ROTATION.length;
+    const gameNumber = Math.min(updated.gameIndex + 1, totalGames);
+    const rotationSummary = TEAMS.map((teamId) => {
+      const members = updated.teams[teamId].map((player) => formatPlayer(player));
+      return `${teamLabel(teamId)}: ${members.join(' & ')}`;
+    }).join('; ');
+    entries.push({
+      type: 'system',
+      text: `Match game ${gameNumber} of ${totalGames} rotation — ${rotationSummary}`,
+      when: Date.now(),
+      actor: SYSTEM_ACTOR,
+    });
+  }
+
   if (advanced.phase === 'MatchOver') {
     const latest = advanced.gameResults[advanced.gameResults.length - 1];
     if (latest) {
+      const totalGames = GAME_ROTATION.length;
+      const honors: string[] = [];
+      const talson = PLAYERS.filter((player) => advanced.playerGameWins[player] === totalGames);
+      if (talson.length > 0) {
+        honors.push(`Talson: ${talson.map((player) => formatPlayer(player)).join(', ')}`);
+      }
+      const usha = PLAYERS.filter((player) => advanced.playerGameWins[player] === 0);
+      if (usha.length > 0) {
+        honors.push(`Usha: ${usha.map((player) => formatPlayer(player)).join(', ')}`);
+      }
+      const summaryParts = [`Game ${latest.gameIndex + 1}: ${teamLabel(latest.winner)} wins ${formatScore(latest.scores)}`];
+      if (honors.length > 0) {
+        summaryParts.push(`Honors — ${honors.join(' • ')}`);
+      }
       entries.push({
         type: 'system',
-        text: `Game over — ${latest.winner} wins ${latest.scores.NorthSouth}-${latest.scores.EastWest}`,
+        text: `Match over — ${summaryParts.join(' ')}`,
         when: Date.now(),
         actor: SYSTEM_ACTOR,
       });

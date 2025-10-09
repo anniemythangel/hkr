@@ -531,9 +531,19 @@ export function advanceState(state: GameState, options: MatchOptions = {}): Game
     const winnerTeam = TEAM_LIST.reduce((best, team) =>
       state.scores[team] > state.scores[best] ? team : best,
     );
+    const resultSummary = {
+      gameIndex: state.gameIndex,
+      winner: winnerTeam,
+      scores: { ...state.scores },
+      seating: [...state.seating],
+      teams: {
+        NorthSouth: [...state.teams.NorthSouth] as [PlayerId, PlayerId],
+        EastWest: [...state.teams.EastWest] as [PlayerId, PlayerId],
+      },
+    };
     const updatedGameResults = [
       ...state.gameResults.filter((entry) => entry.gameIndex !== state.gameIndex),
-      { gameIndex: state.gameIndex, winner: winnerTeam, scores: state.scores },
+      resultSummary,
     ];
 
     const playerWins = { ...state.playerGameWins };

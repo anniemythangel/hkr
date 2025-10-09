@@ -1,4 +1,13 @@
-import { Card, HandScoreSummary, Phase, PlayerId, TeamAssignments, TeamId, Trick } from '@hooker/shared';
+import {
+  Card,
+  GameResultSummary,
+  HandScoreSummary,
+  Phase,
+  PlayerId,
+  TeamAssignments,
+  TeamId,
+  Trick,
+} from '@hooker/shared';
 
 export interface TrickState {
   leader: PlayerId;
@@ -30,7 +39,7 @@ export interface GameState {
   scores: Record<TeamId, number>;
   hand: HandState;
   lastHandSummary?: HandScoreSummary;
-  gameResults: { gameIndex: number; winner: TeamId; scores: Record<TeamId, number> }[];
+  gameResults: GameResultSummary[];
   playerGameWins: Record<PlayerId, number>;
   remainingDecks: Card[][];
   aceDeck: Card[] | null;

@@ -15,6 +15,29 @@ export const PLAYERS: PlayerId[] = ['A', 'B', 'C', 'D'];
 export type TeamId = 'NorthSouth' | 'EastWest';
 export const TEAMS: TeamId[] = ['NorthSouth', 'EastWest'];
 
+export interface GameRotationConfig {
+  seating: PlayerId[];
+  teams: TeamAssignments;
+}
+
+export const GAME_ROTATION: GameRotationConfig[] = [
+  {
+    seating: ['A', 'C', 'B', 'D'],
+    teams: { NorthSouth: ['A', 'B'], EastWest: ['C', 'D'] },
+  },
+  {
+    seating: ['A', 'B', 'C', 'D'],
+    teams: { NorthSouth: ['A', 'C'], EastWest: ['B', 'D'] },
+  },
+  {
+    seating: ['A', 'B', 'D', 'C'],
+    teams: { NorthSouth: ['A', 'D'], EastWest: ['B', 'C'] },
+  },
+];
+
+export const MATCH_GAME_TARGET = 10;
+export const HAND_TRICK_COUNT = 5;
+
 export type Phase =
   | 'MatchSetup'
   | 'KittyDecision'
@@ -52,6 +75,8 @@ export interface GameResultSummary {
   gameIndex: number;
   winner: TeamId;
   scores: Record<TeamId, number>;
+  seating: PlayerId[];
+  teams: TeamAssignments;
 }
 
 export interface AceDrawEvent {

@@ -6,7 +6,7 @@ import ConsolePanel from '../components/ConsolePanel'
 import ChatBox from '../components/ChatBox'
 import TrickHistory from '../components/TrickHistory'
 import Scoreboard from '../components/Scoreboard'
-import { Suit, Card, PlayerId, TEAMS } from '@hooker/shared'
+import { Suit, Card, PlayerId, TEAMS, GAME_ROTATION } from '@hooker/shared'
 
 export default function TablePage() {
   const { roomId: routeRoom } = useParams()
@@ -75,8 +75,11 @@ export default function TablePage() {
   const scoreboardTeams = useMemo(() => {
     if (!snapshot) return [];
     return TEAMS.map((teamId) => {
-      const members = snapshot.teamAssignments[teamId].map((seat) => nameForSeat(seat));
       const label = teamId === 'NorthSouth' ? 'North / South' : 'East / West';
+      const members = snapshot.teamAssignments[teamId].map((seat) => ({
+        id: seat,
+        name: nameForSeat(seat),
+      }));
       return {
         id: teamId,
         label,
@@ -85,6 +88,34 @@ export default function TablePage() {
       };
     });
   }, [snapshot, nameForSeat, trickCounts]);
+
+  const playerNames = useMemo(() => {
+    const mapping = { A: 'A', B: 'B', C: 'C', D: 'D' } as Record<PlayerId, string>;
+    (['A', 'B', 'C', 'D'] as PlayerId[]).forEach((seat) => {
+      mapping[seat] = nameForSeat(seat);
+    });
+    return mapping;
+  }, [nameForSeat]);
+
+  const matchRotation = useMemo(() => {
+    return GAME_ROTATION.map((config, index) => {
+      const result = snapshot?.gameResults.find((entry) => entry.gameIndex === index);
+      const teams = result?.teams ?? config.teams;
+      const seating = result?.seating ?? config.seating;
+      return {
+        gameIndex: index,
+        seating,
+        teams: TEAMS.map((teamId) => ({
+          id: teamId,
+          label: teamId === 'NorthSouth' ? 'North / South' : 'East / West',
+          members: teams[teamId].map((seat) => ({
+            id: seat,
+            name: nameForSeat(seat),
+          })),
+        })),
+      };
+    });
+  }, [nameForSeat, snapshot?.gameResults]);
 
   return (
     <div className="page">
@@ -119,6 +150,14 @@ export default function TablePage() {
                   dealerName={nameForSeat(snapshot.dealer)}
                   trickIndex={snapshot.completedTricks.length}
                   lastHandSummary={snapshot.lastHandSummary}
+                  match={{
+                    phase: snapshot.phase,
+                    gameIndex: snapshot.gameIndex,
+                    results: snapshot.gameResults,
+                    rotation: matchRotation,
+                    playerNames,
+                    playerGameWins: snapshot.playerGameWins,
+                  }}
                 />
               }
               consolePanel={<ConsolePanel entries={logs} />}
