@@ -113,33 +113,45 @@ export function TableLayout({
 
   return (
     <div className="table-layout" aria-label="Card table layout">
-      <aside className="table-layout-sidebar">
-        <Scoreboard
-          scores={snapshot.scores}
-          teams={scoreboardTeams}
-          dealer={snapshot.dealer}
-          dealerName={dealerName}
-          trickIndex={snapshot.completedTricks.length}
-          lastHandSummary={snapshot.lastHandSummary}
-        />
-      </aside>
       <div className="table-layout-stage felt-bg" role="application" aria-label="Active table">
-        <div className="table-status-bar">
-          <div className="table-status-phase">Phase: {snapshot.phase}</div>
-          <div className="table-status-turn" role="status" aria-live="polite">
-            {activeSeat
-              ? activeSeat === playerId
-                ? 'Your turn'
-                : `${activeSeatName}'s turn`
-              : 'Waiting'}
-          </div>
-          {snapshot.trump ? (
-            <TrumpBadge suit={snapshot.trump} />
-          ) : (
-            <span className="trump-badge trump-badge-none" role="status" aria-label="No trump selected">
-              No trump
-            </span>
-          )}
+        <div className="table-layout-top">
+          <Scoreboard
+            scores={snapshot.scores}
+            teams={scoreboardTeams}
+            dealer={snapshot.dealer}
+            dealerName={dealerName}
+            trickIndex={snapshot.completedTricks.length}
+            lastHandSummary={snapshot.lastHandSummary}
+          />
+          <section className="table-status-panel" aria-label="Table status">
+            <div className="table-status-header">
+              <h2 className="table-status-title">Round status</h2>
+              <div className="table-status-turn" role="status" aria-live="polite">
+                {activeSeat
+                  ? activeSeat === playerId
+                    ? 'Your turn'
+                    : `${activeSeatName}'s turn`
+                  : 'Waiting'}
+              </div>
+            </div>
+            <div className="table-status-tags">
+              <span className="table-status-chip">Phase: {snapshot.phase}</span>
+              {snapshot.trump ? (
+                <TrumpBadge suit={snapshot.trump} />
+              ) : (
+                <span className="trump-badge trump-badge-none" role="status" aria-label="No trump selected">
+                  No trump
+                </span>
+              )}
+            </div>
+            <div className="table-aux-info">
+              <KittyTop card={snapshot.kittyTopCard ?? null} />
+              <div className="table-aux-item">
+                <span className="table-aux-label">Kitty size</span>
+                <span className="table-aux-value">{snapshot.kittySize}</span>
+              </div>
+            </div>
+          </section>
         </div>
 
         <div className="table-ring">
@@ -194,11 +206,6 @@ export function TableLayout({
             onDiscard={onDiscard}
             onPlay={onPlay}
           />
-        </div>
-
-        <div className="table-aux-info">
-          <KittyTop card={snapshot.kittyTopCard ?? null} />
-          <div className="table-aux-item">Kitty size: {snapshot.kittySize}</div>
         </div>
 
         {showActionRow ? (
