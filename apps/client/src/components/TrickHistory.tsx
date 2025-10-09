@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { PlayerId, Trick } from '@hooker/shared'
 import { suitFull } from '../utils/cardAssets'
 
@@ -42,7 +43,11 @@ export function TrickHistory({ tricks, seatingOrder, nameForSeat }: TrickHistory
   }
 
   const seatDetails = seatingOrder.map((seat) => ({ seat, name: nameForSeat(seat) }))
-  
+
+  const columnStyle: CSSProperties = {
+    gridTemplateColumns: `repeat(${Math.max(1, seatDetails.length)}, minmax(0, 1fr))`,
+  }
+
   const recentTricks = tricks.slice(-RECENT_LIMIT)
 
   return (
@@ -52,7 +57,7 @@ export function TrickHistory({ tricks, seatingOrder, nameForSeat }: TrickHistory
         <p className="trick-history-subtle">Latest {recentTricks.length} trick{recentTricks.length === 1 ? '' : 's'}</p>
       </header>
       <div className="trick-history-grid" role="table" aria-label="Completed tricks by player">
-        <div className="trick-history-head" role="rowgroup">
+        <div className="trick-history-head" role="rowgroup" style={columnStyle}>
           {seatDetails.map(({ seat, name }) => (
             <span key={seat} role="columnheader" className="trick-history-player" aria-label={name}>
               {name}
@@ -63,7 +68,13 @@ export function TrickHistory({ tricks, seatingOrder, nameForSeat }: TrickHistory
           {recentTricks.map((trick, index) => {
             const trickNumber = tricks.length - recentTricks.length + index + 1
             return (
-              <div key={trickNumber} className="trick-history-row" role="row" aria-label={`Trick ${trickNumber}`}>
+              <div
+                key={trickNumber}
+                className="trick-history-row"
+                role="row"
+                aria-label={`Trick ${trickNumber}`}
+                style={columnStyle}
+              >
                 {seatDetails.map(({ seat, name }) => {
                   const play = trick.cards.find((card) => card.player === seat)
                   const winner = trick.winner === seat

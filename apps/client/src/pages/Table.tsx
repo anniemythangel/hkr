@@ -4,6 +4,7 @@ import { useSocket } from '../hooks/useSocket'
 import TableLayout from '../components/TableLayout'
 import ConsolePanel from '../components/ConsolePanel'
 import ChatBox from '../components/ChatBox'
+import TrickHistory from '../components/TrickHistory'
 import { Suit, Card, PlayerId } from '@hooker/shared'
 
 export default function TablePage() {
@@ -50,6 +51,15 @@ export default function TablePage() {
   const handleDeclareTrump = (suit:Suit)=>emit('declareTrump',{suit})
   const handlePlayCard = (card:Card)=>emit('playCard',{card})
 
+  const seatingOrder = useMemo(() => {
+    const seats = snapshot?.seating ?? []
+    if (!seats.length) return []
+    if (mySeat == null) return seats.slice()
+    const index = seats.indexOf(mySeat)
+    if (index <= 0) return seats.slice()
+    return [...seats.slice(index), ...seats.slice(0, index)]
+  }, [snapshot, mySeat])
+
   return (
     <div className="page">
       <header className="header">
@@ -71,6 +81,7 @@ export default function TablePage() {
                 displayName={displayName}
                 nameForSeat={nameForSeat}
                 legalKeys={legalKeys}
+                seatingOrder={seatingOrder}
                 onKitty={handleKittyDecision}
                 onDiscard={handleDiscard}
                 onPlay={handlePlayCard}
@@ -85,6 +96,13 @@ export default function TablePage() {
         <aside className="side-panel">
           <ConsolePanel entries={logs} />
           <ChatBox messages={chatMessages} onSend={sendChat} disabled={status!=='connected'} name={displayName} />
+          {snapshot ? (
+            <TrickHistory
+              tricks={snapshot.completedTricks}
+              seatingOrder={seatingOrder.length ? seatingOrder : snapshot.seating}
+              nameForSeat={nameForSeat}
+            />
+          ) : null}
         </aside>
       </main>
     </div>

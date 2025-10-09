@@ -15,6 +15,7 @@ interface TableLayoutProps {
   displayName: string
   nameForSeat: (seat: PlayerId) => string
   legalKeys: Set<string>
+  seatingOrder: PlayerId[]
   onKitty: (accept: boolean) => void
   onDiscard: (card: Card) => void
   onPlay: (card: Card) => void
@@ -27,11 +28,6 @@ const SUIT_LABEL: Record<Suit, string> = {
   diamonds: 'Diamonds ♦',
   hearts: 'Hearts ♥',
   spades: 'Spades ♠',
-}
-
-function rotate<T>(values: T[], startIndex: number) {
-  if (startIndex <= 0) return values.slice()
-  return [...values.slice(startIndex), ...values.slice(0, startIndex)]
 }
 
 function getActiveSeat(snapshot: MatchSnapshot): PlayerId | null {
@@ -64,6 +60,7 @@ export function TableLayout({
   displayName,
   nameForSeat,
   legalKeys,
+  seatingOrder,
   onKitty,
   onDiscard,
   onPlay,
@@ -71,10 +68,10 @@ export function TableLayout({
 }: TableLayoutProps) {
   const activeSeat = useMemo(() => getActiveSeat(snapshot), [snapshot])
 
-  const seatingOrder = useMemo(() => {
-    const index = snapshot.seating.indexOf(playerId)
-    return rotate(snapshot.seating, Math.max(0, index))
-  }, [snapshot.seating, playerId])
+  const orderedSeats = useMemo(() => {
+    if (seatingOrder.length) return seatingOrder
+    return snapshot.seating.slice()
+  }, [seatingOrder, snapshot.seating])
 
   const handActionable = useMemo(() => {
     if (activeSeat !== playerId) return false
@@ -164,13 +161,13 @@ export function TableLayout({
                     trick={snapshot.currentTrick}
                     nameForSeat={nameForSeat}
                     trump={snapshot.trump}
-                    seatingOrder={seatingOrder}
+                    seatingOrder={orderedSeats}
                   />
                 </div>
               </div>
             </div>
 
-            {seatingOrder.map((seat, index) => {
+            {orderedSeats.map((seat, index) => {
               const position = POSITIONS[index] ?? 'top'
               const isSelf = seat === playerId
               const seatName = isSelf ? displayName : nameForSeat(seat)
