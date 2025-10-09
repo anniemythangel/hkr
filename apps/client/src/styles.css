@@ -219,6 +219,61 @@ button:disabled {
   flex: 1;
 }
 
+.match-result-banner {
+  position: absolute;
+  inset: clamp(0.5rem, 1.5vw, 1rem);
+  border-radius: 1.1rem;
+  background: linear-gradient(160deg, rgba(3, 30, 23, 0.92), rgba(5, 52, 39, 0.88));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(217, 249, 157, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: clamp(1.75rem, 3vw, 3rem);
+  z-index: 10;
+  color: #fef3c7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  backdrop-filter: blur(3px);
+}
+
+.match-result-banner--talson {
+  border-color: rgba(250, 204, 21, 0.6);
+  background: linear-gradient(160deg, rgba(120, 53, 15, 0.95), rgba(202, 138, 4, 0.85));
+  color: #fffbeb;
+}
+
+.match-result-banner--usha {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: linear-gradient(160deg, rgba(15, 76, 117, 0.92), rgba(12, 74, 110, 0.85));
+  color: #dbeafe;
+}
+
+.match-result-label {
+  font-size: clamp(1.75rem, 3.5vw, 3.25rem);
+  font-weight: 800;
+  text-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.match-result-name {
+  font-size: clamp(2.25rem, 4vw, 4.5rem);
+  font-weight: 900;
+  line-height: 1.05;
+  text-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
+}
+
+.match-result-subtitle {
+  font-size: clamp(0.85rem, 1.8vw, 1.25rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .table-layout-top {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);

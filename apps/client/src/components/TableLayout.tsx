@@ -1,6 +1,6 @@
-import { ReactNode, useCallback, useMemo, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { Card, MatchSnapshot, PlayerId, Suit, TeamId } from '@hooker/shared'
-import { TEAMS } from '@hooker/shared'
+import { GAME_ROTATION, PLAYERS, TEAMS } from '@hooker/shared'
 import Hand from './Hand'
 import Seat from './Seat'
 import TrickArea from './TrickArea'
@@ -71,6 +71,42 @@ export function TableLayout({
 }: TableLayoutProps) {
   const [completedAceDraws, setCompletedAceDraws] = useState<Record<number, boolean>>({})
   const activeSeat = useMemo(() => getActiveSeat(snapshot), [snapshot])
+  const celebration = useMemo(() => {
+    if (snapshot.phase !== 'MatchOver') return null
+    const totalGames = GAME_ROTATION.length
+    const wins = snapshot.playerGameWins
+    const talson = PLAYERS.find((player) => wins[player] === totalGames)
+    if (talson) {
+      return { type: 'Talson' as const, player: talson }
+    }
+    const usha = PLAYERS.find((player) => wins[player] === 0)
+    if (usha) {
+      return { type: 'Usha' as const, player: usha }
+    }
+    return null
+  }, [snapshot])
+
+  const celebrationName = useMemo(() => {
+    if (!celebration) return null
+    if (celebration.player === playerId) return displayName
+    return nameForSeat(celebration.player)
+  }, [celebration, displayName, nameForSeat, playerId])
+
+  const celebrationAudioSrc = useMemo(() => {
+    if (!celebration) return null
+    return celebration.type === 'Talson'
+      ? '/audio/talson_recording.mp3'
+      : '/audio/usha_recording.mp3'
+  }, [celebration])
+
+  useEffect(() => {
+    if (!celebrationAudioSrc) return undefined
+    const audio = new Audio(celebrationAudioSrc)
+    audio.play().catch(() => {})
+    return () => {
+      audio.pause()
+    }
+  }, [celebrationAudioSrc])
 
   const orderedSeats = useMemo(() => {
     if (seatingOrder.length) return seatingOrder
@@ -104,6 +140,21 @@ export function TableLayout({
   return (
     <div className="table-layout" aria-label="Card table layout">
       <div className="table-layout-stage felt-bg" role="application" aria-label="Active table">
+        {celebration && celebrationName ? (
+          <div
+            className={`match-result-banner match-result-banner--${celebration.type.toLowerCase()}`}
+            role="status"
+            aria-live="assertive"
+          >
+            <span className="match-result-label">{celebration.type}</span>
+            <span className="match-result-name">{celebrationName}</span>
+            <span className="match-result-subtitle">
+              {celebration.type === 'Talson'
+                ? 'swept the rotation with flawless victory'
+                : 'endured every battle and will rise again'}
+            </span>
+          </div>
+        ) : null}
         <div className="table-ring">
           <div className="table-ring-grid">
             {scoreboard ? (
