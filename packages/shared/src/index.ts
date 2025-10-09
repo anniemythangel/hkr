@@ -54,6 +54,12 @@ export interface GameResultSummary {
   scores: Record<TeamId, number>;
 }
 
+export interface AceDrawEvent {
+  gameIndex: number;
+  dealer: PlayerId;
+  draws: { player: PlayerId; card: Card }[];
+}
+
 export interface MatchSnapshot {
   phase: Phase;
   gameIndex: number;
@@ -75,4 +81,5 @@ export interface MatchSnapshot {
   lastHandSummary?: HandScoreSummary;
   gameResults: GameResultSummary[];
   playerGameWins: Record<PlayerId, number>;
+  aceDraw?: AceDrawEvent;
 }

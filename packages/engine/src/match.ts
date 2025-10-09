@@ -128,6 +128,7 @@ function initialState(options: MatchOptions = {}): GameState {
     },
     // If deckProvider is used, do not carry a preloaded list forward.
     remainingDecks: options.deckProvider ? [] : remaining ?? [],
+    aceDeck: [...aceDeck],
   };
 }
 
@@ -460,6 +461,7 @@ function resetForNextHand(state: GameState): GameState {
   return {
     ...state,
     dealer: rotateDealer(state),
+    aceDeck: null,
   };
 }
 
@@ -500,6 +502,7 @@ function startNextGame(state: GameState, options: MatchOptions = {}): GameState 
     lastHandSummary: undefined,
     // If provider is used, do not mutate remainingDecks (keep []).
     remainingDecks: options.deckProvider ? [] : remaining,
+    aceDeck: [...aceDeck],
   };
 }
 
@@ -546,6 +549,7 @@ export function advanceState(state: GameState, options: MatchOptions = {}): Game
         phase: 'MatchOver',
         gameResults: updatedGameResults,
         playerGameWins: playerWins,
+        aceDeck: null,
       };
     }
 
@@ -601,6 +605,27 @@ export function getSnapshot(state: GameState, viewer: PlayerId): MatchSnapshot {
     C: state.hand.hands.C.length,
     D: state.hand.hands.D.length,
   };
+  let aceDraw: MatchSnapshot['aceDraw'];
+  if (state.aceDeck && state.aceDeck.length > 0) {
+    const draws: { player: PlayerId; card: Card }[] = [];
+    let dealer: PlayerId | null = null;
+    for (let index = 0; index < state.aceDeck.length; index += 1) {
+      const card = state.aceDeck[index];
+      const player = state.seating[index % state.seating.length];
+      draws.push({ player, card: { ...card } });
+      if (card.rank === 'A') {
+        dealer = player;
+        break;
+      }
+    }
+    if (dealer && draws.length > 0) {
+      aceDraw = {
+        gameIndex: state.gameIndex,
+        dealer,
+        draws,
+      };
+    }
+  }
   return {
     phase: state.phase,
     gameIndex: state.gameIndex,
@@ -629,5 +654,6 @@ export function getSnapshot(state: GameState, viewer: PlayerId): MatchSnapshot {
     lastHandSummary: state.lastHandSummary,
     gameResults: state.gameResults,
     playerGameWins: state.playerGameWins,
+    aceDraw,
   };
 }

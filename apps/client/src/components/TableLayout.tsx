@@ -1,4 +1,4 @@
-import { ReactNode, useMemo } from 'react'
+import { ReactNode, useCallback, useMemo, useState } from 'react'
 import type { Card, MatchSnapshot, PlayerId, Suit, TeamId } from '@hooker/shared'
 import { TEAMS } from '@hooker/shared'
 import Hand from './Hand'
@@ -6,6 +6,7 @@ import Seat from './Seat'
 import TrickArea from './TrickArea'
 import TrumpBadge from './TrumpBadge'
 import KittyTop from './KittyTop'
+import AceDrawAnimation from './AceDrawAnimation'
 
 interface TableLayoutProps {
   snapshot: MatchSnapshot
@@ -68,12 +69,23 @@ export function TableLayout({
   chatBox,
   trickHistory,
 }: TableLayoutProps) {
+  const [completedAceDraws, setCompletedAceDraws] = useState<Record<number, boolean>>({})
   const activeSeat = useMemo(() => getActiveSeat(snapshot), [snapshot])
 
   const orderedSeats = useMemo(() => {
     if (seatingOrder.length) return seatingOrder
     return snapshot.seating.slice()
   }, [seatingOrder, snapshot.seating])
+
+  const activeAceDraw = snapshot.aceDraw
+  const showAceDraw = Boolean(activeAceDraw && !completedAceDraws[activeAceDraw.gameIndex])
+
+  const markAceDrawComplete = useCallback((gameIndex: number) => {
+    setCompletedAceDraws((previous) => {
+      if (previous[gameIndex]) return previous
+      return { ...previous, [gameIndex]: true }
+    })
+  }, [])
 
   const handActionable = useMemo(() => {
     if (activeSeat !== playerId) return false
@@ -120,12 +132,21 @@ export function TableLayout({
             <div className="table-ring-center">
               <div className="table-ring-surface">
                 <div className="table-trick">
-                  <TrickArea
-                    trick={snapshot.currentTrick}
-                    nameForSeat={nameForSeat}
-                    trump={snapshot.trump}
-                    seatingOrder={orderedSeats}
-                  />
+                  {showAceDraw && activeAceDraw ? (
+                    <AceDrawAnimation
+                      draw={activeAceDraw}
+                      nameForSeat={nameForSeat}
+                      seatingOrder={orderedSeats}
+                      onComplete={() => markAceDrawComplete(activeAceDraw.gameIndex)}
+                    />
+                  ) : (
+                    <TrickArea
+                      trick={snapshot.currentTrick}
+                      nameForSeat={nameForSeat}
+                      trump={snapshot.trump}
+                      seatingOrder={orderedSeats}
+                    />
+                  )}
                 </div>
               </div>
             </div>
