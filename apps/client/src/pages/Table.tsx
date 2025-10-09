@@ -100,28 +100,6 @@ export default function TablePage() {
         {error ? <div className="error" role="alert">{error}</div> : null}
         {snapshot && mySeat ? (
           <>
-            <div className="page-top-grid">
-              <div className="panel">
-                <Scoreboard
-                  scores={snapshot.scores}
-                  teams={scoreboardTeams}
-                  dealer={snapshot.dealer}
-                  dealerName={nameForSeat(snapshot.dealer)}
-                  trickIndex={snapshot.completedTricks.length}
-                  lastHandSummary={snapshot.lastHandSummary}
-                />
-              </div>
-              <aside className="side-panel">
-                <ConsolePanel entries={logs} />
-                <ChatBox messages={chatMessages} onSend={sendChat} disabled={status!=='connected'} name={displayName} />
-                <TrickHistory
-                  tricks={snapshot.completedTricks}
-                  seatingOrder={seatingOrder.length ? seatingOrder : snapshot.seating}
-                  nameForSeat={nameForSeat}
-                />
-              </aside>
-            </div>
-
             <TableLayout
               snapshot={snapshot}
               playerId={mySeat}
@@ -133,6 +111,32 @@ export default function TablePage() {
               onDiscard={handleDiscard}
               onPlay={handlePlayCard}
               onDeclareTrump={handleDeclareTrump}
+              scoreboard={
+                <Scoreboard
+                  scores={snapshot.scores}
+                  teams={scoreboardTeams}
+                  dealer={snapshot.dealer}
+                  dealerName={nameForSeat(snapshot.dealer)}
+                  trickIndex={snapshot.completedTricks.length}
+                  lastHandSummary={snapshot.lastHandSummary}
+                />
+              }
+              consolePanel={<ConsolePanel entries={logs} />}
+              chatBox={
+                <ChatBox
+                  messages={chatMessages}
+                  onSend={sendChat}
+                  disabled={status !== 'connected'}
+                  name={displayName}
+                />
+              }
+              trickHistory={
+                <TrickHistory
+                  tricks={snapshot.completedTricks}
+                  seatingOrder={seatingOrder.length ? seatingOrder : snapshot.seating}
+                  nameForSeat={nameForSeat}
+                />
+              }
             />
           </>
         ) : (

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { ReactNode, useMemo } from 'react'
 import type { Card, MatchSnapshot, PlayerId, Suit, TeamId } from '@hooker/shared'
 import { TEAMS } from '@hooker/shared'
 import Hand from './Hand'
@@ -18,6 +18,10 @@ interface TableLayoutProps {
   onDiscard: (card: Card) => void
   onPlay: (card: Card) => void
   onDeclareTrump: (suit: Suit) => void
+  scoreboard: ReactNode
+  consolePanel: ReactNode
+  chatBox: ReactNode
+  trickHistory: ReactNode
 }
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const
@@ -59,6 +63,10 @@ export function TableLayout({
   onDiscard,
   onPlay,
   onDeclareTrump,
+  scoreboard,
+  consolePanel,
+  chatBox,
+  trickHistory,
 }: TableLayoutProps) {
   const activeSeat = useMemo(() => getActiveSeat(snapshot), [snapshot])
 
@@ -85,6 +93,25 @@ export function TableLayout({
       <div className="table-layout-stage felt-bg" role="application" aria-label="Active table">
         <div className="table-ring">
           <div className="table-ring-grid">
+            {scoreboard ? (
+              <div className="table-stage-panel table-stage-panel-top-left" role="complementary">
+                {scoreboard}
+              </div>
+            ) : null}
+
+            {trickHistory ? (
+              <div className="table-stage-panel table-stage-panel-bottom-left" role="complementary">
+                {trickHistory}
+              </div>
+            ) : null}
+
+            {(consolePanel || chatBox) ? (
+              <div className="table-stage-panel table-stage-panel-right" role="complementary">
+                {consolePanel}
+                {chatBox}
+              </div>
+            ) : null}
+
             <div className="table-ring-center">
               <div className="table-ring-surface">
                 <div className="table-trick">
