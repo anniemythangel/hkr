@@ -291,7 +291,6 @@ button:disabled {
 }
 
 .table-ring {
-  position: relative;
   flex: 1;
   padding: clamp(1.75rem, 6vw, 3.5rem);
   min-height: clamp(420px, 58vh, 680px);
@@ -315,7 +314,7 @@ button:disabled {
 .table-ring-surface::before {
   content: '';
   position: absolute;
-  inset: 8%;
+  inset: 9%;
   border-radius: 50%;
   border: 3px solid rgba(94, 234, 212, 0.45);
   box-shadow: 0 0 0 1px rgba(14, 116, 144, 0.4), 0 18px 40px rgba(14, 116, 144, 0.25);
@@ -330,7 +329,6 @@ button:disabled {
 }
 
 .table-seat {
-  position: absolute;
   display: flex;
   justify-content: center;
   width: min(42%, 260px);
@@ -338,27 +336,27 @@ button:disabled {
 }
 
 .table-seat-top {
-  top: clamp(1rem, 6vh, 3rem);
-  left: 50%;
-  transform: translateX(-50%);
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
 }
 
 .table-seat-bottom {
-  bottom: clamp(1rem, 6vh, 3rem);
-  left: 50%;
-  transform: translateX(-50%);
+  grid-column: 2;
+  grid-row: 3;
+  align-self: start;
 }
 
 .table-seat-left {
-  left: clamp(1rem, 6vw, 3rem);
-  top: 50%;
-  transform: translateY(-50%);
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: end;
 }
 
 .table-seat-right {
-  right: clamp(1rem, 6vw, 3rem);
-  top: 50%;
-  transform: translateY(-50%);
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: start;
 }
 
 .table-aux-info {
@@ -408,8 +406,19 @@ button:disabled {
   .table-ring {
     padding: 1.5rem 0.75rem 2rem;
     min-height: 0;
+  }
+
+  .table-ring-grid {
+    display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.1rem;
+    width: 100%;
+  }
+
+  .table-ring-center {
+    order: 3;
+    align-self: center;
+    width: min(100%, 360px);
   }
 
   .table-ring-surface {
@@ -420,10 +429,24 @@ button:disabled {
   }
 
   .table-seat {
-    position: static;
-    transform: none;
     width: 100%;
     max-width: none;
+  }
+
+  .table-seat-top {
+    order: 1;
+  }
+
+  .table-seat-left {
+    order: 2;
+  }
+
+  .table-seat-right {
+    order: 4;
+  }
+
+  .table-seat-bottom {
+    order: 5;
   }
 
   .table-ring .table-trick {

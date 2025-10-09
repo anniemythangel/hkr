@@ -7,6 +7,7 @@ import Seat from './Seat'
 import TrickArea from './TrickArea'
 import TrumpBadge from './TrumpBadge'
 import KittyTop from './KittyTop'
+import TrickHistory from './TrickHistory'
 
 interface TableLayoutProps {
   snapshot: MatchSnapshot
@@ -155,46 +156,50 @@ export function TableLayout({
         </div>
 
         <div className="table-ring">
-          <div className="table-ring-surface">
-            <div className="table-trick">
-              <TrickArea
-                trick={snapshot.currentTrick}
-                nameForSeat={nameForSeat}
-                trump={snapshot.trump}
-                seatingOrder={seatingOrder}
-              />
-            </div>
-          </div>
-
-          {seatingOrder.map((seat, index) => {
-            const position = POSITIONS[index] ?? 'top'
-            const isSelf = seat === playerId
-            const seatName = isSelf ? displayName : nameForSeat(seat)
-            const cardsRemaining = isSelf
-              ? snapshot.selfHand.length
-              : snapshot.otherHandCounts[seat] ?? 0
-
-            return (
-              <div key={seat} className={`table-seat table-seat-${position}`}>
-                <Seat
-                  seat={seat}
-                  name={seatName}
-                  isSelf={isSelf}
-                  isDealer={snapshot.dealer === seat}
-                  isActive={activeSeat === seat}
-                  cardsRemaining={cardsRemaining}
-                  renderBodyWhenEmpty={!isSelf}
-                >
-                  {isSelf ? null : (
-                    <div className="seat-card-backs" aria-hidden="true">
-                      <span className="seat-card-count">{cardsRemaining}</span>
-                      <span className="seat-card-label">cards</span>
-                    </div>
-                  )}
-                </Seat>
+          <div className="table-ring-grid">
+            <div className="table-ring-center">
+              <div className="table-ring-surface">
+                <div className="table-trick">
+                  <TrickArea
+                    trick={snapshot.currentTrick}
+                    nameForSeat={nameForSeat}
+                    trump={snapshot.trump}
+                    seatingOrder={seatingOrder}
+                  />
+                </div>
               </div>
-            )
-          })}
+            </div>
+
+            {seatingOrder.map((seat, index) => {
+              const position = POSITIONS[index] ?? 'top'
+              const isSelf = seat === playerId
+              const seatName = isSelf ? displayName : nameForSeat(seat)
+              const cardsRemaining = isSelf
+                ? snapshot.selfHand.length
+                : snapshot.otherHandCounts[seat] ?? 0
+
+              return (
+                <div key={seat} className={`table-seat table-seat-${position}`}>
+                  <Seat
+                    seat={seat}
+                    name={seatName}
+                    isSelf={isSelf}
+                    isDealer={snapshot.dealer === seat}
+                    isActive={activeSeat === seat}
+                    cardsRemaining={cardsRemaining}
+                    renderBodyWhenEmpty={!isSelf}
+                  >
+                    {isSelf ? null : (
+                      <div className="seat-card-backs" aria-hidden="true">
+                        <span className="seat-card-count">{cardsRemaining}</span>
+                        <span className="seat-card-label">cards</span>
+                      </div>
+                    )}
+                  </Seat>
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         <div className="player-hand-rail">
