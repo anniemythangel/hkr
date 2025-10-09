@@ -337,6 +337,7 @@ button:disabled {
 .table-stage-panel-bottom-left {
   grid-area: bottom-left;
   align-self: end;
+  transform: translateY(-8rem);
 }
 
 .table-stage-panel-top-right,
