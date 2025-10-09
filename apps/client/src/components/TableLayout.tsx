@@ -124,42 +124,35 @@ export function TableLayout({
             trickIndex={snapshot.completedTricks.length}
             lastHandSummary={snapshot.lastHandSummary}
           />
-          <div className="table-top-side">
-            <section className="table-status-panel" aria-label="Table status">
-              <div className="table-status-header">
-                <h2 className="table-status-title">Round status</h2>
-                <div className="table-status-turn" role="status" aria-live="polite">
-                  {activeSeat
-                    ? activeSeat === playerId
-                      ? 'Your turn'
-                      : `${activeSeatName}'s turn`
-                    : 'Waiting'}
-                </div>
+          <section className="table-status-panel" aria-label="Table status">
+            <div className="table-status-header">
+              <h2 className="table-status-title">Round status</h2>
+              <div className="table-status-turn" role="status" aria-live="polite">
+                {activeSeat
+                  ? activeSeat === playerId
+                    ? 'Your turn'
+                    : `${activeSeatName}'s turn`
+                  : 'Waiting'}
               </div>
-              <div className="table-status-tags">
-                <span className="table-status-chip">Phase: {snapshot.phase}</span>
-                {snapshot.trump ? (
-                  <TrumpBadge suit={snapshot.trump} />
-                ) : (
-                  <span className="trump-badge trump-badge-none" role="status" aria-label="No trump selected">
-                    No trump
-                  </span>
-                )}
+            </div>
+            <div className="table-status-tags">
+              <span className="table-status-chip">Phase: {snapshot.phase}</span>
+              {snapshot.trump ? (
+                <TrumpBadge suit={snapshot.trump} />
+              ) : (
+                <span className="trump-badge trump-badge-none" role="status" aria-label="No trump selected">
+                  No trump
+                </span>
+              )}
+            </div>
+            <div className="table-aux-info">
+              <KittyTop card={snapshot.kittyTopCard ?? null} />
+              <div className="table-aux-item">
+                <span className="table-aux-label">Kitty size</span>
+                <span className="table-aux-value">{snapshot.kittySize}</span>
               </div>
-              <div className="table-aux-info">
-                <KittyTop card={snapshot.kittyTopCard ?? null} />
-                <div className="table-aux-item">
-                  <span className="table-aux-label">Kitty size</span>
-                  <span className="table-aux-value">{snapshot.kittySize}</span>
-                </div>
-              </div>
-            </section>
-            <TrickHistory
-              tricks={snapshot.completedTricks}
-              seatingOrder={seatingOrder}
-              nameForSeat={nameForSeat}
-            />
-          </div>
+            </div>
+          </section>
         </div>
 
         <div className="table-ring">

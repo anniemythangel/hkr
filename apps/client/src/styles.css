@@ -230,13 +230,7 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   gap: clamp(1.25rem, 2.5vw, 2rem);
-  align-items: start;
-}
-
-.table-top-side {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(1rem, 2vw, 1.5rem);
+  align-items: stretch;
 }
 
 .table-status-panel {
@@ -298,27 +292,8 @@ button:disabled {
 
 .table-ring {
   flex: 1;
-  padding: clamp(1.5rem, 5vw, 3rem);
-  min-height: clamp(460px, 58vh, 720px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.table-ring-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: clamp(1.5rem, 4vw, 2.5rem);
-  align-items: center;
-  justify-items: center;
-  width: min(100%, 980px);
-}
-
-.table-ring-center {
-  grid-column: 2;
-  grid-row: 2;
-  width: 100%;
+  padding: clamp(1.75rem, 6vw, 3.5rem);
+  min-height: clamp(420px, 58vh, 680px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -326,7 +301,7 @@ button:disabled {
 
 .table-ring-surface {
   position: relative;
-  width: min(100%, 460px);
+  width: min(100%, 680px);
   aspect-ratio: 4 / 3;
   border-radius: 50%;
   display: flex;
@@ -356,8 +331,8 @@ button:disabled {
 .table-seat {
   display: flex;
   justify-content: center;
-  width: min(100%, 260px);
-  max-width: 280px;
+  width: min(42%, 260px);
+  max-width: 300px;
 }
 
 .table-seat-top {
@@ -419,79 +394,6 @@ button:disabled {
 .kitty-top .card-img {
   width: clamp(52px, 6vw, 78px);
   height: clamp(78px, 10vw, 118px);
-}
-
-.trick-history-panel {
-  background: linear-gradient(160deg, rgba(2, 24, 17, 0.72), rgba(4, 32, 24, 0.85));
-  border: 1px solid rgba(148, 197, 166, 0.28);
-  border-radius: 1.35rem;
-  padding: clamp(1.1rem, 2vw, 1.45rem);
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  box-shadow: inset 0 1px 0 rgba(12, 48, 33, 0.35), 0 16px 36px rgba(4, 17, 12, 0.35);
-}
-
-.trick-history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.trick-history-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-
-.trick-history-subtle {
-  margin: 0;
-  font-size: 0.85rem;
-  color: rgba(226, 232, 240, 0.7);
-}
-
-.trick-history-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.35rem 0.5rem;
-}
-
-.trick-history-head,
-.trick-history-row {
-  display: contents;
-}
-
-.trick-history-player {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(226, 232, 240, 0.65);
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.trick-history-card {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.25rem;
-  border-radius: 0.75rem;
-  background: rgba(2, 20, 15, 0.75);
-  border: 1px solid rgba(56, 189, 248, 0.18);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  font-size: 0.9rem;
-  color: rgba(226, 232, 240, 0.9);
-}
-
-.trick-history-card-winner {
-  border-color: rgba(190, 242, 100, 0.55);
-  background: rgba(63, 160, 85, 0.35);
-  box-shadow: 0 12px 26px rgba(63, 160, 85, 0.35);
 }
 
 @media (max-width: 1080px) {
