@@ -5,7 +5,8 @@ import TableLayout from '../components/TableLayout'
 import ConsolePanel from '../components/ConsolePanel'
 import ChatBox from '../components/ChatBox'
 import TrickHistory from '../components/TrickHistory'
-import { Suit, Card, PlayerId } from '@hooker/shared'
+import Scoreboard from '../components/Scoreboard'
+import { Suit, Card, PlayerId, TEAMS } from '@hooker/shared'
 
 export default function TablePage() {
   const { roomId: routeRoom } = useParams()
@@ -60,6 +61,31 @@ export default function TablePage() {
     return [...seats.slice(index), ...seats.slice(0, index)]
   }, [snapshot, mySeat])
 
+  const trickCounts = useMemo(() => {
+    if (!snapshot) return { NorthSouth: 0, EastWest: 0 };
+    const counts = { NorthSouth: 0, EastWest: 0 };
+    for (const trick of snapshot.completedTricks) {
+      if (!trick.winner) continue;
+      const team = snapshot.teamAssignments.NorthSouth.includes(trick.winner) ? 'NorthSouth' : 'EastWest';
+      counts[team] += 1;
+    }
+    return counts;
+  }, [snapshot]);
+
+  const scoreboardTeams = useMemo(() => {
+    if (!snapshot) return [];
+    return TEAMS.map((teamId) => {
+      const members = snapshot.teamAssignments[teamId].map((seat) => nameForSeat(seat));
+      const label = teamId === 'NorthSouth' ? 'North / South' : 'East / West';
+      return {
+        id: teamId,
+        label,
+        members,
+        handTricks: trickCounts[teamId],
+      };
+    });
+  }, [snapshot, nameForSeat, trickCounts]);
+
   return (
     <div className="page">
       <header className="header">
@@ -70,40 +96,48 @@ export default function TablePage() {
         <div className="status-chip" role="status">Status: {status}</div>
       </header>
 
-      <main className="app-grid">
-        <div className="table-area">
-          {error ? <div className="error" role="alert">{error}</div> : null}
-          {snapshot && mySeat ? (
-            <section className="panel table-panel" aria-live="polite">
-              <TableLayout
-                snapshot={snapshot}
-                playerId={mySeat}
-                displayName={displayName}
-                nameForSeat={nameForSeat}
-                legalKeys={legalKeys}
-                seatingOrder={seatingOrder}
-                onKitty={handleKittyDecision}
-                onDiscard={handleDiscard}
-                onPlay={handlePlayCard}
-                onDeclareTrump={handleDeclareTrump}
-              />
-            </section>
-          ) : (
-            <section className="panel placeholder-panel"><p>Reconnecting…</p></section>
-          )}
-        </div>
+      <main>
+        {error ? <div className="error" role="alert">{error}</div> : null}
+        {snapshot && mySeat ? (
+          <>
+            <div className="page-top-grid">
+              <div className="panel">
+                <Scoreboard
+                  scores={snapshot.scores}
+                  teams={scoreboardTeams}
+                  dealer={snapshot.dealer}
+                  dealerName={nameForSeat(snapshot.dealer)}
+                  trickIndex={snapshot.completedTricks.length}
+                  lastHandSummary={snapshot.lastHandSummary}
+                />
+              </div>
+              <aside className="side-panel">
+                <ConsolePanel entries={logs} />
+                <ChatBox messages={chatMessages} onSend={sendChat} disabled={status!=='connected'} name={displayName} />
+                <TrickHistory
+                  tricks={snapshot.completedTricks}
+                  seatingOrder={seatingOrder.length ? seatingOrder : snapshot.seating}
+                  nameForSeat={nameForSeat}
+                />
+              </aside>
+            </div>
 
-        <aside className="side-panel">
-          <ConsolePanel entries={logs} />
-          <ChatBox messages={chatMessages} onSend={sendChat} disabled={status!=='connected'} name={displayName} />
-          {snapshot ? (
-            <TrickHistory
-              tricks={snapshot.completedTricks}
-              seatingOrder={seatingOrder.length ? seatingOrder : snapshot.seating}
+            <TableLayout
+              snapshot={snapshot}
+              playerId={mySeat}
+              displayName={displayName}
               nameForSeat={nameForSeat}
+              legalKeys={legalKeys}
+              seatingOrder={seatingOrder}
+              onKitty={handleKittyDecision}
+              onDiscard={handleDiscard}
+              onPlay={handlePlayCard}
+              onDeclareTrump={handleDeclareTrump}
             />
-          ) : null}
-        </aside>
+          </>
+        ) : (
+          <section className="panel placeholder-panel"><p>Reconnecting…</p></section>
+        )}
       </main>
     </div>
   )

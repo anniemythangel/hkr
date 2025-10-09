@@ -2,12 +2,10 @@ import { useMemo } from 'react'
 import type { Card, MatchSnapshot, PlayerId, Suit, TeamId } from '@hooker/shared'
 import { TEAMS } from '@hooker/shared'
 import Hand from './Hand'
-import Scoreboard from './Scoreboard'
 import Seat from './Seat'
 import TrickArea from './TrickArea'
 import TrumpBadge from './TrumpBadge'
 import KittyTop from './KittyTop'
-import TrickHistory from './TrickHistory'
 
 interface TableLayoutProps {
   snapshot: MatchSnapshot
@@ -50,10 +48,6 @@ function getActiveSeat(snapshot: MatchSnapshot): PlayerId | null {
   }
 }
 
-function teamForSeat(assignments: MatchSnapshot['teamAssignments'], seat: PlayerId): TeamId {
-  return assignments.NorthSouth.includes(seat) ? 'NorthSouth' : 'EastWest'
-}
-
 export function TableLayout({
   snapshot,
   playerId,
@@ -78,29 +72,6 @@ export function TableLayout({
     return snapshot.phase === 'Discard' || snapshot.phase === 'TrickPlay'
   }, [activeSeat, playerId, snapshot.phase])
 
-  const trickCounts = useMemo(() => {
-    const counts: Record<TeamId, number> = { NorthSouth: 0, EastWest: 0 }
-    for (const trick of snapshot.completedTricks) {
-      if (!trick.winner) continue
-      const team = teamForSeat(snapshot.teamAssignments, trick.winner)
-      counts[team] += 1
-    }
-    return counts
-  }, [snapshot.completedTricks, snapshot.teamAssignments])
-
-  const scoreboardTeams = useMemo(() => {
-    return TEAMS.map((teamId) => {
-      const members = snapshot.teamAssignments[teamId].map((seat) => nameForSeat(seat))
-      const label = teamId === 'NorthSouth' ? 'North / South' : 'East / West'
-      return {
-        id: teamId,
-        label,
-        members,
-        handTricks: trickCounts[teamId],
-      }
-    })
-  }, [nameForSeat, snapshot.teamAssignments, trickCounts])
-
   const dealerName = nameForSeat(snapshot.dealer)
   const activeSeatName = activeSeat ? nameForSeat(activeSeat) : null
   const canAcceptKitty = snapshot.phase === 'KittyDecision' && snapshot.kittyOfferee === playerId
@@ -112,46 +83,6 @@ export function TableLayout({
   return (
     <div className="table-layout" aria-label="Card table layout">
       <div className="table-layout-stage felt-bg" role="application" aria-label="Active table">
-        <div className="table-layout-top">
-          <Scoreboard
-            scores={snapshot.scores}
-            teams={scoreboardTeams}
-            dealer={snapshot.dealer}
-            dealerName={dealerName}
-            trickIndex={snapshot.completedTricks.length}
-            lastHandSummary={snapshot.lastHandSummary}
-          />
-          <section className="table-status-panel" aria-label="Table status">
-            <div className="table-status-header">
-              <h2 className="table-status-title">Round status</h2>
-              <div className="table-status-turn" role="status" aria-live="polite">
-                {activeSeat
-                  ? activeSeat === playerId
-                    ? 'Your turn'
-                    : `${activeSeatName}'s turn`
-                  : 'Waiting'}
-              </div>
-            </div>
-            <div className="table-status-tags">
-              <span className="table-status-chip">Phase: {snapshot.phase}</span>
-              {snapshot.trump ? (
-                <TrumpBadge suit={snapshot.trump} />
-              ) : (
-                <span className="trump-badge trump-badge-none" role="status" aria-label="No trump selected">
-                  No trump
-                </span>
-              )}
-            </div>
-            <div className="table-aux-info">
-              <KittyTop card={snapshot.kittyTopCard ?? null} />
-              <div className="table-aux-item">
-                <span className="table-aux-label">Kitty size</span>
-                <span className="table-aux-value">{snapshot.kittySize}</span>
-              </div>
-            </div>
-          </section>
-        </div>
-
         <div className="table-ring">
           <div className="table-ring-grid">
             <div className="table-ring-center">
