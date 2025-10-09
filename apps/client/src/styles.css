@@ -28,9 +28,9 @@ button {
 }
 
 .page {
-  max-width: 1200px;
+  max-width: min(96vw, 1340px);
   margin: 0 auto;
-  padding: 2rem 1rem 3rem;
+  padding: 2rem 1.5rem 3rem;
 }
 
 .header {
@@ -62,14 +62,22 @@ button {
 
 .app-grid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 1.5rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 5fr) minmax(280px, 3fr);
+  gap: 1.75rem;
+  align-items: stretch;
 }
 
 @media (max-width: 960px) {
   .app-grid {
     grid-template-columns: 1fr;
+  }
+
+  .table-layout-top {
+    grid-template-columns: 1fr;
+  }
+
+  .table-status-panel {
+    order: -1;
   }
 }
 
@@ -203,52 +211,114 @@ button:disabled {
   pointer-events: none;
 }
 
-.table-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
 
-.table-layout-sidebar {
-  position: relative;
-  z-index: 1;
+.table-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
 }
 
 .table-layout-stage {
   position: relative;
-  padding: 1.5rem clamp(1rem, 3vw, 2.25rem) 1.75rem;
+  padding: clamp(1.25rem, 2.5vw, 2rem) clamp(1.25rem, 3vw, 2.5rem) clamp(1.75rem, 3.5vw, 2.75rem);
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: clamp(1.25rem, 2.5vw, 2rem);
 }
 
-.table-status-bar {
+.table-layout-top {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: clamp(1.25rem, 2.5vw, 2rem);
+  align-items: start;
+}
+
+.table-top-side {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+  flex-direction: column;
+  gap: clamp(1rem, 2vw, 1.5rem);
+}
+
+.table-status-panel {
+  background: linear-gradient(160deg, rgba(2, 26, 18, 0.72), rgba(5, 39, 30, 0.82));
+  border: 1px solid rgba(148, 197, 166, 0.32);
+  border-radius: 1.35rem;
+  padding: clamp(1.15rem, 2vw, 1.5rem) clamp(1.1rem, 2.5vw, 1.8rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: inset 0 1px 0 rgba(12, 48, 33, 0.45), 0 16px 36px rgba(4, 17, 12, 0.35);
+}
+
+.table-status-header {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(4, 31, 22, 0.6);
-  border: 1px solid rgba(94, 234, 212, 0.18);
-  border-radius: 1rem;
-  padding: 0.75rem 1rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.table-status-phase {
-  font-weight: 600;
+.table-status-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
 }
 
 .table-status-turn {
-  font-weight: 600;
+  font-weight: 700;
   color: #bef264;
+  background: rgba(190, 242, 100, 0.15);
+  border: 1px solid rgba(190, 242, 100, 0.3);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.95rem;
+}
+
+.table-status-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.table-status-chip {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-weight: 600;
+  color: #bbf7d0;
+  font-size: 0.95rem;
+}
+
+.table-status-chip + .trump-badge,
+.table-status-chip + .trump-badge.trump-badge-none {
+  margin-left: 0.25rem;
 }
 
 .table-ring {
-  position: relative;
   flex: 1;
-  padding: clamp(2rem, 7vw, 3.5rem);
-  min-height: clamp(480px, 62vh, 720px);
+  padding: clamp(1.5rem, 5vw, 3rem);
+  min-height: clamp(460px, 58vh, 720px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.table-ring-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 2.5rem);
+  align-items: center;
+  justify-items: center;
+  width: min(100%, 980px);
+}
+
+.table-ring-center {
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -256,7 +326,7 @@ button:disabled {
 
 .table-ring-surface {
   position: relative;
-  width: min(100%, 760px);
+  width: min(100%, 460px);
   aspect-ratio: 4 / 3;
   border-radius: 50%;
   display: flex;
@@ -269,7 +339,7 @@ button:disabled {
 .table-ring-surface::before {
   content: '';
   position: absolute;
-  inset: 8%;
+  inset: 9%;
   border-radius: 50%;
   border: 3px solid rgba(94, 234, 212, 0.45);
   box-shadow: 0 0 0 1px rgba(14, 116, 144, 0.4), 0 18px 40px rgba(14, 116, 144, 0.25);
@@ -284,58 +354,149 @@ button:disabled {
 }
 
 .table-seat {
-  position: absolute;
   display: flex;
   justify-content: center;
-  width: min(46%, 280px);
-  max-width: 320px;
+  width: min(100%, 260px);
+  max-width: 280px;
 }
 
 .table-seat-top {
-  top: clamp(1rem, 6vh, 3rem);
-  left: 50%;
-  transform: translateX(-50%);
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
 }
 
 .table-seat-bottom {
-  bottom: clamp(1rem, 6vh, 3rem);
-  left: 50%;
-  transform: translateX(-50%);
+  grid-column: 2;
+  grid-row: 3;
+  align-self: start;
 }
 
 .table-seat-left {
-  left: clamp(1rem, 6vw, 3rem);
-  top: 50%;
-  transform: translateY(-50%);
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: end;
 }
 
 .table-seat-right {
-  right: clamp(1rem, 6vw, 3rem);
-  top: 50%;
-  transform: translateY(-50%);
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: start;
 }
 
 .table-aux-info {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
   font-size: 0.9rem;
-  color: rgba(226, 232, 240, 0.75);
+  color: rgba(226, 232, 240, 0.82);
 }
 
 .table-aux-item {
-  background: rgba(4, 40, 28, 0.55);
-  border-radius: 0.75rem;
-  padding: 0.5rem 0.85rem;
-  border: 1px solid rgba(56, 189, 248, 0.15);
+  background: rgba(3, 24, 18, 0.7);
+  border-radius: 0.9rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
 }
 
-@media (max-width: 1024px) {
-  .table-layout {
-    grid-template-columns: 1fr;
-  }
-  .table-layout-sidebar {
-    order: -1;
+.table-aux-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.table-aux-value {
+  font-size: 0.95rem;
+}
+
+.kitty-top {
+  padding-right: 0.5rem;
+}
+
+.kitty-top .card-img {
+  width: clamp(52px, 6vw, 78px);
+  height: clamp(78px, 10vw, 118px);
+}
+
+.trick-history-panel {
+  background: linear-gradient(160deg, rgba(2, 24, 17, 0.72), rgba(4, 32, 24, 0.85));
+  border: 1px solid rgba(148, 197, 166, 0.28);
+  border-radius: 1.35rem;
+  padding: clamp(1.1rem, 2vw, 1.45rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  box-shadow: inset 0 1px 0 rgba(12, 48, 33, 0.35), 0 16px 36px rgba(4, 17, 12, 0.35);
+}
+
+.trick-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.trick-history-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.trick-history-subtle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.trick-history-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem 0.5rem;
+}
+
+.trick-history-head,
+.trick-history-row {
+  display: contents;
+}
+
+.trick-history-player {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(226, 232, 240, 0.65);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trick-history-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  border-radius: 0.75rem;
+  background: rgba(2, 20, 15, 0.75);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-size: 0.9rem;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.trick-history-card-winner {
+  border-color: rgba(190, 242, 100, 0.55);
+  background: rgba(63, 160, 85, 0.35);
+  box-shadow: 0 12px 26px rgba(63, 160, 85, 0.35);
+}
+
+@media (max-width: 1080px) {
+  .side-panel {
+    order: 3;
   }
 }
 
@@ -343,8 +504,19 @@ button:disabled {
   .table-ring {
     padding: 1.5rem 0.75rem 2rem;
     min-height: 0;
+  }
+
+  .table-ring-grid {
+    display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.1rem;
+    width: 100%;
+  }
+
+  .table-ring-center {
+    order: 3;
+    align-self: center;
+    width: min(100%, 360px);
   }
 
   .table-ring-surface {
@@ -355,10 +527,24 @@ button:disabled {
   }
 
   .table-seat {
-    position: static;
-    transform: none;
     width: 100%;
     max-width: none;
+  }
+
+  .table-seat-top {
+    order: 1;
+  }
+
+  .table-seat-left {
+    order: 2;
+  }
+
+  .table-seat-right {
+    order: 4;
+  }
+
+  .table-seat-bottom {
+    order: 5;
   }
 
   .table-ring .table-trick {
@@ -787,10 +973,15 @@ button:disabled {
 
 .action-row {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.85rem;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  background: rgba(3, 26, 19, 0.72);
+  border: 1px solid rgba(94, 234, 212, 0.2);
+  border-radius: 1.1rem;
+  padding: 0.9rem 1.2rem;
+  box-shadow: inset 0 1px 0 rgba(9, 40, 30, 0.35);
 }
 
 .trump-actions {
