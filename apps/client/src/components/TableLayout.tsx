@@ -96,7 +96,7 @@ export function TableLayout({
     if (!celebration) return null
     return celebration.type === 'Talson'
       ? '/audio/talson_recording.mp3'
-      : '/audio/usha_recording.mp3'
+      : '/audio/usha_recording.wav'
   }, [celebration])
 
   useEffect(() => {
@@ -155,7 +155,17 @@ export function TableLayout({
             role="status"
             aria-live="assertive"
           >
-            <span className="match-result-label">{celebration.type}</span>
+            <div className="match-result-banner-celebration" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="match-result-banner-header">
+              <span className="match-result-label">{celebration.type}</span>
+              <span className="match-result-icon" aria-hidden="true">
+                {celebration.type === 'Talson' ? '🎉' : '💩'}
+              </span>
+            </div>
             <span className="match-result-name">{celebrationName}</span>
             <span className="match-result-subtitle">
               {celebration.type === 'Talson'
