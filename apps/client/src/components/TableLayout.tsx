@@ -79,6 +79,7 @@ export function TableLayout({
 
   const activeAceDraw = snapshot.aceDraw
   const showAceDraw = Boolean(activeAceDraw && !completedAceDraws[activeAceDraw.gameIndex])
+  const dealerRevealed = !showAceDraw
 
   const markAceDrawComplete = useCallback((gameIndex: number) => {
     setCompletedAceDraws((previous) => {
@@ -165,7 +166,7 @@ export function TableLayout({
                     seat={seat}
                     name={seatName}
                     isSelf={isSelf}
-                    isDealer={snapshot.dealer === seat}
+                    isDealer={dealerRevealed && snapshot.dealer === seat}
                     isActive={activeSeat === seat}
                     cardsRemaining={cardsRemaining}
                     renderBodyWhenEmpty={!isSelf}
