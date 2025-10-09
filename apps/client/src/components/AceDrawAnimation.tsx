@@ -10,14 +10,38 @@ interface AceDrawAnimationProps {
 }
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const
+const RANK_LABEL: Record<AceDrawEvent['draws'][number]['card']['rank'], string> = {
+  A: 'Ace',
+  K: 'King',
+  Q: 'Queen',
+  J: 'Jack',
+  '10': '10',
+  '9': '9',
+}
 
 export function AceDrawAnimation({ draw, seatingOrder, nameForSeat, onComplete }: AceDrawAnimationProps) {
   const [revealedCount, setRevealedCount] = useState(0)
   const completionAnnounced = useRef(false)
+  const loggedCount = useRef(0)
+
+  const revealedDraws = useMemo(() => draw.draws.slice(0, revealedCount), [draw.draws, revealedCount])
+  const latestDraw = revealedDraws[revealedDraws.length - 1] ?? null
+  const latestSeat = latestDraw?.player ?? null
+  const aceDrawn = revealedCount >= draw.draws.length && draw.draws.length > 0
+  const finalDraw = draw.draws[draw.draws.length - 1] ?? null
+
+  const cardsBySeat = useMemo(() => {
+    const map = new Map<PlayerId, AceDrawEvent['draws'][number]>()
+    for (const entry of revealedDraws) {
+      map.set(entry.player, entry)
+    }
+    return map
+  }, [revealedDraws])
 
   useEffect(() => {
     setRevealedCount(0)
     completionAnnounced.current = false
+    loggedCount.current = 0
   }, [draw.gameIndex])
 
   useEffect(() => {
@@ -33,22 +57,28 @@ export function AceDrawAnimation({ draw, seatingOrder, nameForSeat, onComplete }
     if (draw.draws.length === 0) return
     if (completionAnnounced.current) return
     completionAnnounced.current = true
-    onComplete?.()
+    const timeout = setTimeout(() => {
+      onComplete?.()
+    }, 2000)
+    return () => clearTimeout(timeout)
   }, [revealedCount, draw.draws.length, onComplete])
 
-  const revealedDraws = useMemo(() => draw.draws.slice(0, revealedCount), [draw.draws, revealedCount])
-  const latestDraw = revealedDraws[revealedDraws.length - 1] ?? null
-  const latestSeat = latestDraw?.player ?? null
-  const aceDrawn = revealedCount >= draw.draws.length && draw.draws.length > 0
-  const finalDraw = draw.draws[draw.draws.length - 1] ?? null
-
-  const cardsBySeat = useMemo(() => {
-    const map = new Map<PlayerId, AceDrawEvent['draws'][number]>()
-    for (const entry of revealedDraws) {
-      map.set(entry.player, entry)
+  useEffect(() => {
+    const newCount = revealedDraws.length
+    if (newCount <= loggedCount.current) return
+    const newEntries = revealedDraws.slice(loggedCount.current)
+    for (const entry of newEntries) {
+      const playerName = nameForSeat(entry.player)
+      const rankLabel = RANK_LABEL[entry.card.rank] ?? entry.card.rank
+      const suitLabel = suitFull(entry.card.suit)
+      if (entry.card.rank === 'A' && entry.player === draw.dealer) {
+        console.info(`${playerName} drew ${rankLabel} of ${suitLabel} and they are the dealer.`)
+      } else {
+        console.info(`${playerName} drew ${rankLabel} of ${suitLabel}`)
+      }
     }
-    return map
-  }, [revealedDraws])
+    loggedCount.current = newCount
+  }, [draw.dealer, nameForSeat, revealedDraws])
 
   const message = useMemo(() => {
     if (!revealedDraws.length) {
