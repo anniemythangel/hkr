@@ -1,15 +1,6 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "pnpm install",
-  "buildCommand": "pnpm --filter @hooker/shared build && pnpm --filter @hooker/engine build && pnpm --filter @hooker/client build",
+  "buildCommand": "pnpm install --shamefully-hoist && pnpm -r build",
+  "installCommand": "pnpm install --shamefully-hoist",
   "outputDirectory": "apps/client/dist",
-  "env": {
-    "VITE_WS_URL": "https://<railway-app>.up.railway.app"
-  },
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "framework": null
 }
