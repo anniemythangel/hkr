@@ -102,11 +102,34 @@ export function TableLayout({
   useEffect(() => {
     if (!celebrationAudioSrc) return undefined
     const audio = new Audio(celebrationAudioSrc)
-    audio.play().catch(() => {})
+    let stopped = false
+    let playCount = 0
+
+    const play = () => {
+      if (stopped) return
+      playCount += 1
+      audio.currentTime = 0
+      audio.play().catch(() => {})
+    }
+
+    const handleEnded = () => {
+      if (playCount < 3) {
+        play()
+      }
+    }
+
+    if (celebration?.type === 'Usha') {
+      audio.addEventListener('ended', handleEnded)
+    }
+
+    play()
+
     return () => {
+      stopped = true
+      audio.removeEventListener('ended', handleEnded)
       audio.pause()
     }
-  }, [celebrationAudioSrc])
+  }, [celebration?.type, celebrationAudioSrc])
 
   const orderedSeats = useMemo(() => {
     if (seatingOrder.length) return seatingOrder
