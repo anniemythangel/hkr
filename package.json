@@ -3,5 +3,6 @@
   "private": true,
   "engines": {
     "node": "20.x"
-  }
+  },
+  "packageManager": "pnpm@9.1.0"
 }
