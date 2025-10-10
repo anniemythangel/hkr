@@ -35,6 +35,17 @@ The workspace is managed by `pnpm`, and the root `package.json` exposes convenie
 
 The client defaults to `http://localhost:3001` for WebSocket traffic, matching the server’s default port. You can point the UI at a different backend by exporting `VITE_WS_URL` when starting Vite or by entering an alternate URL in the lobby form.【F:apps/server/src/index.ts†L17-L24】【F:apps/client/src/pages/Lobby.tsx†L6-L70】【F:apps/client/src/pages/Table.tsx†L14-L36】
 
+## Vercel deployment
+
+The repository includes a `vercel.json` that configures Vercel to build and serve the React client from `apps/client`. The CLI or dashboard project should use the repository root, but set the project directory to `apps/client` so the static build output (`dist/`) is detected correctly. Pair the configuration with the following project settings:
+
+- **Install command** – `pnpm install --frozen-lockfile` to hydrate the entire workspace before building.
+- **Build command** – `pnpm --filter @hooker/shared build && pnpm --filter @hooker/engine build && pnpm --filter @hooker/client build` so all dependent packages are compiled prior to the Vite client bundle.
+- **Output directory** – `apps/client/dist` so Vercel serves the generated static assets.
+- **Environment variable** – define `VITE_WS_URL` and point it at your deployed Railway Socket.IO server, e.g. `https://<railway-app>.up.railway.app`.
+
+The rewrite block in `vercel.json` routes every path to `/index.html`, enabling React Router deep links such as `/room/<id>` to resolve without returning 404 responses on hard refreshes. Adjust the environment variable or build commands as needed if your hosting targets change.【F:vercel.json†L1-L16】
+
 ## Gameplay flow
 
 1. **Lobby & seating** – Players choose a server, room ID, seat (A–D), and display name. We persist the last successful seat in local storage for fast reconnects.【F:apps/client/src/pages/Lobby.tsx†L9-L29】【F:apps/client/src/hooks/useSocket.ts†L68-L131】
