@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: hooker-backend
+    env: node
+    plan: free
+    autoDeploy: true
+    branch: main
+    buildCommand: >-
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @hooker/shared build &&
+      pnpm --filter @hooker/engine build &&
+      pnpm --filter @hooker/server build
+    startCommand: pnpm --filter @hooker/server start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+staticSites:
+  - name: hooker-client
+    plan: free
+    buildCommand: >-
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @hooker/shared build &&
+      pnpm --filter @hooker/engine build &&
+      pnpm --filter @hooker/client build
+    publishPath: apps/client/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_WS_URL
+        fromService:
+          type: web
+          name: hooker-backend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NODE_VERSION
+        value: 20

@@ -35,6 +35,10 @@ The workspace is managed by `pnpm`, and the root `package.json` exposes convenie
 
 The client defaults to `http://localhost:3001` for WebSocket traffic, matching the server’s default port. You can point the UI at a different backend by exporting `VITE_WS_URL` when starting Vite or by entering an alternate URL in the lobby form.【F:apps/server/src/index.ts†L17-L24】【F:apps/client/src/pages/Lobby.tsx†L6-L70】【F:apps/client/src/pages/Table.tsx†L14-L36】
 
+## Render deployment
+
+The repository includes a [`render.yaml`](render.yaml) blueprint that provisions both services on Render: the Socket.IO backend as a Node web service and the Vite client as a static site. The build steps install workspace dependencies with `pnpm`, compile the shared and engine packages, and then build the server/client artifacts so Render can serve the bundled assets. The static site automatically rewrites all routes to `index.html` for React Router and injects the backend’s public URL into `VITE_WS_URL`, so the lobby points at the deployed server without manual configuration.【F:render.yaml†L1-L36】【F:apps/client/src/pages/Lobby.tsx†L6-L70】【F:apps/client/src/pages/Table.tsx†L14-L36】
+
 ## Gameplay flow
 
 1. **Lobby & seating** – Players choose a server, room ID, seat (A–D), and display name. We persist the last successful seat in local storage for fast reconnects.【F:apps/client/src/pages/Lobby.tsx†L9-L29】【F:apps/client/src/hooks/useSocket.ts†L68-L131】
