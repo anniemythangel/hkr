@@ -191,6 +191,16 @@ button:disabled {
   font-weight: 600;
 }
 
+.success {
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+  background: rgba(22, 101, 52, 0.35);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  border-radius: 1.25rem;
+  color: #bbf7d0;
+  font-weight: 600;
+}
+
 .felt-bg {
   background: radial-gradient(circle at 30% 30%, rgba(30, 84, 63, 0.9), rgba(12, 47, 33, 0.95) 60%, rgba(4, 25, 17, 0.98));
   border-radius: 1.35rem;

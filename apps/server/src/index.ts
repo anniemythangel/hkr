@@ -16,7 +16,97 @@ import type { GameState } from '@hooker/engine';
 
 const port = Number(process.env.PORT ?? 3001);
 
-const httpServer = createServer();
+const httpServer = createServer((req, res) => {
+  const rawUrl = req.url ?? '/';
+  const requestUrl = new URL(rawUrl, `http://${req.headers.host ?? 'localhost'}`);
+
+  if (requestUrl.pathname.startsWith('/socket.io')) {
+    return;
+  }
+
+  const setCorsHeaders = () => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  };
+
+  if (req.method === 'OPTIONS') {
+    setCorsHeaders();
+    res.writeHead(204).end();
+    return;
+  }
+
+  const resetMatchPattern = /^\/rooms\/([^/]+)\/reset$/;
+  const resetMatchMatch = requestUrl.pathname.match(resetMatchPattern);
+
+  if (req.method === 'POST' && resetMatchMatch) {
+    const roomId = decodeURIComponent(resetMatchMatch[1]);
+    const chunks: Uint8Array[] = [];
+
+    req.on('data', (chunk) => {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    });
+
+    req.on('error', () => {
+      setCorsHeaders();
+      res
+        .writeHead(400, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ ok: false, error: 'Failed to read request body' }));
+    });
+
+    req.on('end', () => {
+      let requestedBy: string | null = null;
+      if (chunks.length > 0) {
+        const bodyText = Buffer.concat(chunks).toString('utf8');
+        if (bodyText.trim().length > 0) {
+          try {
+            const parsed = JSON.parse(bodyText);
+            if (parsed && typeof parsed.requestedBy === 'string') {
+              const trimmed = parsed.requestedBy.trim();
+              requestedBy = trimmed.length > 0 ? trimmed : null;
+            }
+          } catch (error) {
+            setCorsHeaders();
+            res
+              .writeHead(400, { 'Content-Type': 'application/json' })
+              .end(JSON.stringify({ ok: false, error: 'Invalid JSON payload' }));
+            return;
+          }
+        }
+      }
+
+      const actor: ActorInfo = requestedBy
+        ? { seat: null, name: requestedBy }
+        : SYSTEM_ACTOR;
+
+      resetMatch(roomId, actor);
+
+      setCorsHeaders();
+      res
+        .writeHead(200, { 'Content-Type': 'application/json' })
+        .end(
+          JSON.stringify({
+            ok: true,
+            message: `New game launched for room ${roomId}`,
+          }),
+        );
+    });
+
+    return;
+  }
+
+  if (req.method === 'GET' && requestUrl.pathname === '/') {
+    res
+      .writeHead(200, { 'Content-Type': 'application/json' })
+      .end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  setCorsHeaders();
+  res
+    .writeHead(404, { 'Content-Type': 'application/json' })
+    .end(JSON.stringify({ ok: false, error: 'Not found' }));
+});
 const io = new Server(httpServer, {
   cors: {
     origin: '*',
@@ -425,6 +515,42 @@ function ensureMatchStarted(roomId: string) {
     text: 'All players ready — starting match!',
     when: Date.now(),
     actor: SYSTEM_ACTOR,
+  });
+}
+
+function resetMatch(roomId: string, actor: ActorInfo = SYSTEM_ACTOR) {
+  const roster = roomRosters.get(roomId);
+  if (roster) {
+    for (const info of roster.values()) {
+      info.ready = false;
+    }
+  }
+
+  const normalizedActor = actor?.name?.trim()
+    ? { seat: actor.seat ?? null, name: actor.name.trim() }
+    : SYSTEM_ACTOR;
+  const isSystemActor = !actor?.name?.trim() || actor.name.trim().toLowerCase() === SYSTEM_ACTOR.name.toLowerCase();
+
+  const newState = autoAdvance(createMatch(), roomId);
+  roomState.set(roomId, newState);
+
+  roomLogs.set(roomId, []);
+
+  io.to(roomId).emit('matchReset', { actor: normalizedActor });
+
+  emitLobbyState(roomId);
+  emitRoster(roomId);
+  broadcastSnapshot(roomId, newState);
+
+  const logText = isSystemActor
+    ? 'New match started'
+    : `New match started by ${normalizedActor.name}`;
+
+  emitRoomLog(roomId, {
+    type: 'system',
+    text: logText,
+    when: Date.now(),
+    actor: normalizedActor,
   });
 }
 
