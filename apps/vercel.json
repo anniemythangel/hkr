@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @hooker/shared build && pnpm --filter @hooker/engine build && pnpm --filter @hooker/client build",
+  "outputDirectory": "apps/client/dist",
+  "env": {
+    "VITE_WS_URL": "https://<railway-app>.up.railway.app"
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
