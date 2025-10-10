@@ -4,6 +4,7 @@ export function scoreHand(
   tricks: { winner?: PlayerId }[],
   teamByPlayer: Record<PlayerId, TeamId>,
   dealer: PlayerId,
+  caller?: PlayerId,
 ): HandScoreSummary {
   const trickCounts: Record<TeamId, number> = {
     NorthSouth: 0,
@@ -21,10 +22,17 @@ export function scoreHand(
   const winningTeam: TeamId =
     trickCounts.NorthSouth > trickCounts.EastWest ? 'NorthSouth' : 'EastWest';
 
+  const callingTeam = teamByPlayer[caller ?? dealer];
   const tricksWon = trickCounts[winningTeam];
-  const points = tricksWon === 5 ? 3 : tricksWon === 4 ? 2 : 1;
-  const dealerTeam = teamByPlayer[dealer];
-  const euchred = trickCounts[dealerTeam] < 3;
+
+  let points: number;
+  if (winningTeam === callingTeam) {
+    points = tricksWon === 5 ? 3 : tricksWon === 4 ? 2 : 1;
+  } else {
+    points = 2;
+  }
+
+  const euchred = trickCounts[callingTeam] < 3;
 
   return {
     winningTeam,
