@@ -1,13 +1,13 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PlayerId } from '@hooker/shared'
+import { PlayerId, PLAYERS } from '@hooker/shared'
 import { useSocket } from '../hooks/useSocket'
 
 const DEFAULT_SERVER = import.meta.env.VITE_WS_URL ?? 'http://localhost:3001'
-const PLAYER_IDS: PlayerId[] = ['A','B','C','D']
+const PLAYER_IDS: PlayerId[] = PLAYERS
 
 export default function Lobby() {
-  const { connect, token, clearToken, defaultServer, status } = useSocket(DEFAULT_SERVER)
+  const { connect, token, clearToken, defaultServer, status, lobby } = useSocket(DEFAULT_SERVER)
   const [serverUrl, setServerUrl] = useState(token?.serverUrl ?? defaultServer)
   const [roomId, setRoomId] = useState(token?.roomId ?? 'demo')
   const [playerId, setPlayerId] = useState<PlayerId>(token?.seat ?? 'A')
@@ -18,6 +18,16 @@ export default function Lobby() {
   useEffect(() => {
     setName(prev => (!prev || /^Player [A-D]$/.test(prev)) ? `Player ${playerId}` : prev)
   }, [playerId])
+
+  const lobbyStatusLabel = lobby
+    ? lobby.matchStarted
+      ? 'Match in progress'
+      : lobby.status === 'waitingForPlayers'
+        ? 'Waiting for players'
+        : lobby.status === 'waitingForReady'
+          ? 'Waiting for ready checks'
+          : 'Ready to start'
+    : 'Seat availability updates after you connect.'
 
   const handleJoin = (e: FormEvent) => {
     e.preventDefault()
@@ -68,6 +78,38 @@ export default function Lobby() {
             </div>
             {formError && <div className="error">{formError}</div>}
           </form>
+          <section className="panel lobby-status-panel">
+            <h2 className="panel-heading">Room status</h2>
+            {lobby ? (
+              <>
+                <p>{lobbyStatusLabel}</p>
+                <ul className="waiting-seat-list">
+                  {PLAYER_IDS.map(seat => {
+                    const seatState = lobby.seats[seat]
+                    const name = seatState?.name ?? `Seat ${seat}`
+                    const seatStatus = !seatState?.present
+                      ? 'Open seat'
+                      : seatState.ready
+                        ? 'Ready'
+                        : 'Not ready'
+                    const statusKey = !seatState?.present
+                      ? 'open'
+                      : seatState.ready
+                        ? 'ready'
+                        : 'present'
+                    return (
+                      <li key={seat} className="waiting-seat-row" data-status={statusKey}>
+                        <span>{seat}: {name}</span>
+                        <span>{seatStatus}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            ) : (
+              <p className="waiting-note">Seat availability appears after you join or reconnect to a room.</p>
+            )}
+          </section>
         </div>
       </main>
     </div>
