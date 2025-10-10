@@ -13,6 +13,10 @@
   min-width: 0;
 }
 
+.is-responsive-enabled .table-stage-panel {
+  container-type: inline-size;
+}
+
 .is-responsive-enabled .table-ring,
 .is-responsive-enabled .table-ring-grid,
 .is-responsive-enabled .table-stage-panel,
@@ -275,5 +279,18 @@
     border-top: 1px solid rgba(94, 234, 212, 0.24);
     backdrop-filter: blur(4px);
     padding-bottom: calc(0.85rem + env(safe-area-inset-bottom));
+  }
+}
+
+@container (max-width: 420px) {
+  .is-responsive-enabled .table-stage-panel > * {
+    padding-inline: clamp(0.6rem, 4vw, 0.85rem);
+    gap: clamp(0.6rem, 4vw, 0.85rem);
+  }
+
+  .is-responsive-enabled .panel-title,
+  .is-responsive-enabled .trick-history-title,
+  .is-responsive-enabled .scoreboard-title {
+    font-size: clamp(0.95rem, 2.8vw, 1.1rem);
   }
 }

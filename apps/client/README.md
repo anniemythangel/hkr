@@ -2,6 +2,8 @@
 
 This package contains the Vite + React client for the Hooker demo table. It connects to the Socket.IO server and renders the action console, chat, and table UI.
 
+Best on portrait phones; landscape supported.
+
 ## Getting started
 
 ```bash
