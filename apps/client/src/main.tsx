@@ -4,6 +4,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Lobby from './pages/Lobby'
 import TablePage from './pages/Table'
 import './styles.css'
+import './responsive.css'
+import { syncResponsiveModeClass } from './utils/featureFlags'
+
+syncResponsiveModeClass()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
