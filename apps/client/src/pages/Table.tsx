@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useSocket } from '../hooks/useSocket'
 import TableLayout from '../components/TableLayout'
@@ -6,13 +6,13 @@ import ConsolePanel from '../components/ConsolePanel'
 import ChatBox from '../components/ChatBox'
 import TrickHistory from '../components/TrickHistory'
 import Scoreboard from '../components/Scoreboard'
-import { Suit, Card, PlayerId, TEAMS, GAME_ROTATION } from '@hooker/shared'
+import { Suit, Card, PlayerId, TEAMS, GAME_ROTATION, PLAYERS } from '@hooker/shared'
 
 export default function TablePage() {
   const { roomId: routeRoom } = useParams()
   const {
     status, snapshot, error, logs, chatMessages,
-    connect, emitAction, sendChat, token, defaultServer, roster
+    connect, emitAction, sendChat, setReady, roster, lobby, token, defaultServer
   } = useSocket(import.meta.env.VITE_WS_URL ?? 'http://localhost:3001')
   const nav = useNavigate()
   const displayName = token?.name ?? 'Player'
@@ -41,9 +41,16 @@ export default function TablePage() {
     [snapshot?.legalCards],
   )
   const mySeat: PlayerId | undefined = token?.seat
+  const mySeatState = mySeat ? lobby?.seats?.[mySeat] : undefined
   const nameForSeat = useMemo(
-    () => (seat: PlayerId) => roster?.[seat]?.name?.trim() || `Player ${seat}`,
-    [roster],
+    () => (seat: PlayerId) => {
+      const lobbyName = lobby?.seats?.[seat]?.name?.trim()
+      if (lobbyName) return lobbyName
+      const rosterName = roster?.[seat]?.name?.trim()
+      if (rosterName) return rosterName
+      return `Player ${seat}`
+    },
+    [lobby, roster],
   )
 
   const emit = (event: string, payload: unknown) => emitAction(event, payload)
@@ -51,6 +58,9 @@ export default function TablePage() {
   const handleDiscard = (card:Card)=>emit('discard',{card})
   const handleDeclareTrump = (suit:Suit)=>emit('declareTrump',{suit})
   const handlePlayCard = (card:Card)=>emit('playCard',{card})
+  const handleReadyToggle = useCallback(() => {
+    setReady(!(mySeatState?.ready ?? false))
+  }, [mySeatState?.ready, setReady])
 
   const seatingOrder = useMemo(() => {
     const seats = snapshot?.seating ?? []
@@ -117,6 +127,41 @@ export default function TablePage() {
     });
   }, [nameForSeat, snapshot?.gameResults]);
 
+  const lobbyJoinedCount = useMemo(() => {
+    if (!lobby) return 0
+    return PLAYERS.reduce((count, seat) => count + (lobby.seats[seat]?.present ? 1 : 0), 0)
+  }, [lobby])
+
+  const lobbyReadyCount = useMemo(() => {
+    if (!lobby) return 0
+    return PLAYERS.reduce(
+      (count, seat) => count + (lobby.seats[seat]?.present && lobby.seats[seat]?.ready ? 1 : 0),
+      0,
+    )
+  }, [lobby])
+
+  const lobbyStatusText = useMemo(() => {
+    if (!lobby) return 'Waiting for lobby information…'
+    if (lobby.matchStarted) {
+      return 'Match is starting…'
+    }
+    switch (lobby.status) {
+      case 'waitingForPlayers':
+        return `Waiting for players to join (${lobbyJoinedCount}/4 seated)`
+      case 'waitingForReady':
+        return `Waiting for players to ready up (${lobbyReadyCount}/4 ready)`
+      case 'ready':
+        return 'All players ready! Starting match…'
+      default:
+        return 'Match in progress'
+    }
+  }, [lobby, lobbyJoinedCount, lobbyReadyCount])
+
+  const readyButtonDisabled =
+    status !== 'connected' || !mySeatState?.present || Boolean(lobby?.matchStarted)
+  const readyButtonLabel = mySeatState?.ready ? 'Cancel ready' : 'Ready up'
+  const showReadyButton = Boolean(mySeat && lobby && !lobby.matchStarted)
+
   return (
     <div className="page">
       <header className="header">
@@ -179,7 +224,59 @@ export default function TablePage() {
             />
           </>
         ) : (
-          <section className="panel placeholder-panel"><p>Reconnecting…</p></section>
+          <section className="panel placeholder-panel waiting-panel">
+            {status !== 'connected' ? (
+              <p>Reconnecting…</p>
+            ) : lobby?.matchStarted ? (
+              <>
+                <h2>Loading match…</h2>
+                <p>{lobbyStatusText}</p>
+              </>
+            ) : lobby ? (
+              <>
+                <h2>Waiting in lobby</h2>
+                <p>{lobbyStatusText}</p>
+                <ul className="waiting-seat-list">
+                  {PLAYERS.map((seat) => {
+                    const seatState = lobby.seats[seat]
+                    const isSelf = seat === mySeat
+                    const name = seatState?.name ?? `Seat ${seat}`
+                    const seatStatus = !seatState?.present
+                      ? 'Open seat'
+                      : seatState.ready
+                        ? 'Ready'
+                        : 'Not ready'
+                    const statusKey = !seatState?.present
+                      ? 'open'
+                      : seatState.ready
+                        ? 'ready'
+                        : 'present'
+                    return (
+                      <li key={seat} className="waiting-seat-row" data-status={statusKey}>
+                        <span>
+                          {seat}: {name}
+                          {isSelf ? ' (You)' : ''}
+                        </span>
+                        <span>{seatStatus}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {showReadyButton ? (
+                  <div className="waiting-actions">
+                    <button type="button" onClick={handleReadyToggle} disabled={readyButtonDisabled}>
+                      {readyButtonLabel}
+                    </button>
+                    <p className="waiting-note">Everyone must join and click ready before the game begins.</p>
+                  </div>
+                ) : (
+                  <p className="waiting-note">Everyone must join and click ready before the game begins.</p>
+                )}
+              </>
+            ) : (
+              <p>Connecting to lobby…</p>
+            )}
+          </section>
         )}
       </main>
     </div>

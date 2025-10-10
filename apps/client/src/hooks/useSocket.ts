@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { MatchSnapshot, PlayerId } from '@hooker/shared';
+import type { MatchSnapshot, PlayerId, RoomLobbyState } from '@hooker/shared';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -19,7 +19,7 @@ export type ConsoleEntry = {
 
 const SYSTEM_ACTOR: ConsoleActor = { seat: null, name: 'System' };
 
-type Roster = Partial<Record<PlayerId, { name: string }>>;
+type Roster = Partial<Record<PlayerId, { name: string; ready: boolean }>>;
 
 export type ChatMessage = {
   name: string;
@@ -72,6 +72,7 @@ export function useSocket(defaultServerUrl: string) {
   const [logs, setLogs] = useState<ConsoleEntry[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [roster, setRoster] = useState<Roster>({});
+  const [lobby, setLobby] = useState<RoomLobbyState | null>(null);
   const [token, setToken] = useState<RejoinToken | null>(() => readToken());
 
   const socketRef = useRef<Socket | null>(null);
@@ -111,6 +112,7 @@ export function useSocket(defaultServerUrl: string) {
     setLogs([]);
     setChatMessages([]);
     setRoster({});
+    setLobby(null);
   }, []);
 
   const connect = useCallback(
@@ -169,12 +171,16 @@ export function useSocket(defaultServerUrl: string) {
         }
       });
 
-      socket.on('snapshot', (data: MatchSnapshot) => {
-        setSnapshot(data);
+      socket.on('snapshot', (data: MatchSnapshot | null) => {
+        setSnapshot(data ?? null);
       });
 
       socket.on('roster', (data: Roster) => {
         setRoster(data ?? {});
+      });
+
+      socket.on('lobby', (data: RoomLobbyState) => {
+        setLobby(data);
       });
 
       socket.on('errorMessage', (message: string) => {
@@ -223,6 +229,7 @@ export function useSocket(defaultServerUrl: string) {
     setStatus('disconnected');
     setSnapshot(null);
     setRoster({});
+    setLobby(null);
   }, []);
 
   const emitAction = useCallback(
@@ -233,6 +240,18 @@ export function useSocket(defaultServerUrl: string) {
         return;
       }
       socket.emit(event, payload);
+    },
+    [appendLog, status],
+  );
+
+  const setReady = useCallback(
+    (ready: boolean) => {
+      const socket = socketRef.current;
+      if (!socket || status !== 'connected') {
+        appendLog({ type: 'system', text: 'Not connected to server', when: Date.now(), actor: SYSTEM_ACTOR });
+        return;
+      }
+      socket.emit('setReady', { ready });
     },
     [appendLog, status],
   );
@@ -298,7 +317,9 @@ export function useSocket(defaultServerUrl: string) {
     disconnect,
     emitAction,
     sendChat,
+    setReady,
     roster,
+    lobby,
     token,
     clearToken,
     defaultServer: effectiveServerUrl,

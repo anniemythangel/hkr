@@ -11,7 +11,7 @@ import {
   advanceState,
 } from '@hooker/engine';
 import { GAME_ROTATION, PLAYERS, PlayerId, TEAMS } from '@hooker/shared';
-import type { HandScoreSummary } from '@hooker/shared';
+import type { HandScoreSummary, RoomLobbyState } from '@hooker/shared';
 import type { GameState } from '@hooker/engine';
 
 const port = Number(process.env.PORT ?? 3001);
@@ -42,12 +42,12 @@ type ChatEntry = {
   when: number;
 };
 
-type RosterPayload = Partial<Record<PlayerId, { name: string }>>;
+type RosterPayload = Partial<Record<PlayerId, { name: string; ready: boolean }>>;
 
 const roomState = new Map<string, GameState>();
 const roomLogs = new Map<string, LogEntry[]>();
 const roomChats = new Map<string, ChatEntry[]>();
-const roomRosters = new Map<string, Map<PlayerId, { name: string; socketId: string }>>();
+const roomRosters = new Map<string, Map<PlayerId, { name: string; socketId: string; ready: boolean }>>();
 
 const SYSTEM_ACTOR: ActorInfo = { seat: null, name: 'System' };
 
@@ -113,6 +113,10 @@ const chatSchema = z.object({
   text: z.string().min(1),
 });
 
+const readyStateSchema = z.object({
+  ready: z.boolean(),
+});
+
 type SocketData = {
   roomId?: string;
   player?: PlayerId;
@@ -133,18 +137,27 @@ io.on('connection', (socket) => {
     socket.data.roomId = roomId;
     socket.data.player = player;
     socket.data.name = name;
-    socket.join(roomId);
-
-    if (!roomState.has(roomId)) {
-      roomState.set(roomId, autoAdvance(createMatch(), roomId));
-    }
 
     const roster = ensureRoster(roomId);
-    roster.set(player, { name, socketId: socket.id });
-    emitRoster(roomId);
+    const existing = roster.get(player);
+    if (existing && existing.socketId !== socket.id) {
+      socket.emit('errorMessage', 'That seat is already taken.');
+      return;
+    }
 
-    const state = roomState.get(roomId)!;
-    socket.emit('snapshot', getSnapshot(state, player));
+    socket.join(roomId);
+
+    const readyState = roomState.has(roomId) ? existing?.ready ?? false : false;
+    roster.set(player, { name, socketId: socket.id, ready: readyState });
+    emitRoster(roomId);
+    emitLobbyState(roomId);
+
+    const state = roomState.get(roomId);
+    if (state) {
+      socket.emit('snapshot', getSnapshot(state, player));
+    } else {
+      socket.emit('snapshot', null);
+    }
 
     const logs = roomLogs.get(roomId) ?? [];
     for (const entry of logs) {
@@ -273,6 +286,30 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('setReady', (raw) => {
+    if (!socket.data.roomId || !socket.data.player) return;
+    const data = readyStateSchema.safeParse(raw);
+    if (!data.success) {
+      socket.emit('errorMessage', data.error.message);
+      return;
+    }
+
+    const roomId = socket.data.roomId;
+    const seat = socket.data.player;
+    const roster = roomRosters.get(roomId);
+    if (!roster) return;
+    const entry = roster.get(seat);
+    if (!entry) return;
+    if (roomState.has(roomId)) {
+      return;
+    }
+
+    entry.ready = data.data.ready;
+    emitRoster(roomId);
+    emitLobbyState(roomId);
+    ensureMatchStarted(roomId);
+  });
+
   socket.on('chat', (raw) => {
     const data = chatSchema.safeParse(raw);
     if (!data.success) {
@@ -304,6 +341,7 @@ io.on('connection', (socket) => {
         roomRosters.delete(roomId);
       }
       emitRoster(roomId);
+      emitLobbyState(roomId);
     }
   });
 });
@@ -356,6 +394,38 @@ function act(
       emitRoomLog(roomId, entry);
     }
   }
+}
+
+function ensureMatchStarted(roomId: string) {
+  if (roomState.has(roomId)) {
+    return;
+  }
+  const roster = roomRosters.get(roomId);
+  if (!roster) {
+    return;
+  }
+
+  const allPresent = PLAYERS.every((seat) => roster.has(seat));
+  if (!allPresent) {
+    return;
+  }
+
+  const allReady = PLAYERS.every((seat) => roster.get(seat)?.ready === true);
+  if (!allReady) {
+    return;
+  }
+
+  const state = autoAdvance(createMatch(), roomId);
+  roomState.set(roomId, state);
+  emitLobbyState(roomId);
+  emitRoster(roomId);
+  broadcastSnapshot(roomId, state);
+  emitRoomLog(roomId, {
+    type: 'system',
+    text: 'All players ready — starting match!',
+    when: Date.now(),
+    actor: SYSTEM_ACTOR,
+  });
 }
 
 function broadcastSnapshot(roomId: string, state: GameState) {
@@ -488,6 +558,10 @@ function emitRoster(roomId: string) {
   io.to(roomId).emit('roster', getRosterPayload(roomId));
 }
 
+function emitLobbyState(roomId: string) {
+  io.to(roomId).emit('lobby', getLobbyPayload(roomId));
+}
+
 function getRosterPayload(roomId: string): RosterPayload {
   const roster = roomRosters.get(roomId);
   if (!roster) {
@@ -495,9 +569,49 @@ function getRosterPayload(roomId: string): RosterPayload {
   }
   const result: RosterPayload = {};
   for (const [seat, info] of roster.entries()) {
-    result[seat] = { name: info.name };
+    result[seat] = { name: info.name, ready: info.ready };
   }
   return result;
+}
+
+function getLobbyPayload(roomId: string): RoomLobbyState {
+  const seats = PLAYERS.reduce<RoomLobbyState['seats']>((acc, seat) => {
+    acc[seat] = { name: null, ready: false, present: false };
+    return acc;
+  }, {} as RoomLobbyState['seats']);
+
+  const roster = roomRosters.get(roomId);
+  if (roster) {
+    for (const seat of PLAYERS) {
+      const info = roster.get(seat);
+      if (info) {
+        seats[seat] = { name: info.name, ready: info.ready, present: true };
+      }
+    }
+  }
+
+  const matchStarted = roomState.has(roomId);
+  const allPresent = PLAYERS.every((seat) => seats[seat].present);
+  const allReady = allPresent && PLAYERS.every((seat) => seats[seat].ready);
+
+  let status: RoomLobbyState['status'];
+  if (matchStarted) {
+    status = 'inProgress';
+  } else if (!allPresent) {
+    status = 'waitingForPlayers';
+  } else if (allReady) {
+    status = 'ready';
+  } else {
+    status = 'waitingForReady';
+  }
+
+  return {
+    seats,
+    status,
+    allPresent,
+    allReady,
+    matchStarted,
+  };
 }
 
 function appendLog(roomId: string, entry: LogEntry) {

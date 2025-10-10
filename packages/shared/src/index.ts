@@ -108,3 +108,19 @@ export interface MatchSnapshot {
   playerGameWins: Record<PlayerId, number>;
   aceDraw?: AceDrawEvent;
 }
+
+export type LobbyStatus = 'waitingForPlayers' | 'waitingForReady' | 'ready' | 'inProgress';
+
+export interface LobbySeatState {
+  name: string | null;
+  ready: boolean;
+  present: boolean;
+}
+
+export interface RoomLobbyState {
+  seats: Record<PlayerId, LobbySeatState>;
+  status: LobbyStatus;
+  allPresent: boolean;
+  allReady: boolean;
+  matchStarted: boolean;
+}
