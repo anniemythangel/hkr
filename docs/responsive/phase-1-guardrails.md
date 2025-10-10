@@ -17,8 +17,8 @@
 - **Felt minimums:** `.table-ring` enforces `min-height: clamp(440px, 58vh, 640px)`; tall requirement can push the hand rail off-screen on landscape phones.【F:apps/client/src/styles.css†L577-L584】
 
 ## Strategy contract
-- **Breakpoint tiers:** Tuned after container-query instrumentation to stage-driven thresholds: table stage `≤1200px` and `≤720px`; table ring `≤960px`, `≤800px`, `≤640px`, `≤520px`; hand rail `≤820px`, `≤640px`, `≤520px`. Wider sizes inherit existing desktop rules.
-- **Container-query targets:** Promote the felt/table wrapper (`.table-layout-stage` → `table-stage`) and the table ring (`.table-ring`) plus the hand rail (`.player-hand-rail`) to named query containers so seat sizing, kitty pocket behavior, and card gutters respond to available width instead of the viewport.【F:docs/responsive/phase-0-preflight.md†L18-L36】
+- **Breakpoint tiers:** Start with `≤480px`, `481–600px`, `601–768px`, `769–1024px`, `1025–1280px`, and `≥1281px`, adjusting only when container-query data shows a cleaner threshold.
+- **Container-query targets:** Promote the felt/table wrapper (`.table-ring`) and the hand rail (`.player-hand-rail`) to named query containers so seat sizing, kitty pocket behavior, and card gutters respond to available width instead of the viewport.【F:docs/responsive/phase-0-preflight.md†L18-L36】
 - **Touch ergonomics:** Maintain ≥44×44px hit areas for actionable buttons/cards; prefer stacked or scrollable layouts over shrinking tap targets. Preserve primary controls within comfortable reach in portrait and landscape.
 - **Safe-area support:** When the responsive layer is active, pad sticky footers/rails (`env(safe-area-inset-*)`) and ensure banners or action rows respect notches and home indicators.
 - **Desktop parity guardrail:** All responsive overrides will live under `.is-responsive-enabled` (and future feature hooks) so disabling the flag reverts to today’s desktop layout with no regressions.
