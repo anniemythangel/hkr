@@ -13,6 +13,8 @@ export default function Lobby() {
   const [playerId, setPlayerId] = useState<PlayerId>(token?.seat ?? 'A')
   const [name, setName] = useState(token?.name ?? `Player ${playerId}`)
   const [formError, setFormError] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [isResetting, setIsResetting] = useState(false)
   const nav = useNavigate()
 
   useEffect(() => {
@@ -34,8 +36,64 @@ export default function Lobby() {
     if (!roomId.trim()) return setFormError('Room ID is required')
     if (!name.trim()) return setFormError('Display name is required')
     setFormError(null)
+    setActionMessage(null)
     connect({ serverUrl, roomId, seat: playerId, name })
     nav(`/room/${encodeURIComponent(roomId)}`)
+  }
+
+  const handleLaunchNewGame = async () => {
+    if (isResetting) return
+    const trimmedRoom = roomId.trim()
+    if (!trimmedRoom) {
+      setActionMessage(null)
+      setFormError('Room ID is required to launch a new game')
+      return
+    }
+    const confirmed = window.confirm(
+      'This will reset the current match, reshuffle the decks, and start from the beginning. Continue?',
+    )
+    if (!confirmed) return
+
+    setIsResetting(true)
+    setFormError(null)
+    setActionMessage(null)
+
+    const effectiveServer = (serverUrl?.trim() || defaultServer).replace(/\/?$/, '')
+    try {
+      const response = await fetch(
+        `${effectiveServer}/rooms/${encodeURIComponent(trimmedRoom)}/reset`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestedBy: name.trim() || null }),
+        },
+      )
+
+      const contentType = response.headers.get('content-type')
+      let payload: any = null
+      if (contentType && contentType.includes('application/json')) {
+        payload = await response.json()
+      } else {
+        const text = await response.text()
+        if (text) {
+          payload = { message: text }
+        }
+      }
+
+      if (!response.ok || payload?.ok === false) {
+        const errorMessage = payload?.error || payload?.message || `Request failed (${response.status})`
+        throw new Error(errorMessage)
+      }
+
+      const successMessage =
+        payload?.message || `New game launched for room "${trimmedRoom}". Everyone has been reset.`
+      setActionMessage(successMessage)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      setFormError(`Failed to launch new game: ${message}`)
+    } finally {
+      setIsResetting(false)
+    }
   }
 
   return (
@@ -74,8 +132,12 @@ export default function Lobby() {
             </div>
             <div className="form-actions">
               <button type="submit">Join room</button>
+              <button type="button" onClick={handleLaunchNewGame} disabled={isResetting}>
+                {isResetting ? 'Launching…' : 'New Game'}
+              </button>
               {token && <button type="button" className="link-button" onClick={clearToken}>Clear saved seat</button>}
             </div>
+            {actionMessage && <div className="success">{actionMessage}</div>}
             {formError && <div className="error">{formError}</div>}
           </form>
           <section className="panel lobby-status-panel">

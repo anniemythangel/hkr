@@ -195,6 +195,11 @@ export function useSocket(defaultServerUrl: string) {
         appendChat(entry);
       });
 
+      socket.on('matchReset', () => {
+        setSnapshot(null);
+        setLogs([]);
+      });
+
       socket.on('connect_error', (err) => {
         setStatus('connecting');
         setError(err.message);
