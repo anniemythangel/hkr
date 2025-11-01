@@ -7,6 +7,8 @@ interface TrickAreaProps {
   nameForSeat: (seat: PlayerId) => string;
   trump?: Suit;
   seatingOrder: PlayerId[];
+  completedTrickCount: number;
+  lastCompletedTrick?: Trick;
 }
 
 type PlayedCard = Trick['cards'][number];
@@ -38,17 +40,27 @@ function cloneTrick(trick?: Trick): TrickSnapshot | undefined {
   };
 }
 
-export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickAreaProps) {
+export function TrickArea({
+  trick,
+  nameForSeat,
+  trump,
+  seatingOrder,
+  completedTrickCount,
+  lastCompletedTrick,
+}: TrickAreaProps) {
   const [displayedCards, setDisplayedCards] = useState<PlayedCard[]>(() =>
     clonePlayedCards(trick?.cards ?? [])
   );
   const [collectingSeat, setCollectingSeat] = useState<PlayerId | null>(null);
-  const previousTrickRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
+  const previousTrickRef = useRef<TrickSnapshot | undefined>(
+    cloneTrick(lastCompletedTrick ?? trick)
+  );
   const latestTrickSnapshotRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
   const pendingNextSnapshotRef = useRef<TrickSnapshot | undefined>();
   const lingerTimeoutRef = useRef<number | null>(null);
   const collectTimeoutRef = useRef<number | null>(null);
   const unmountedRef = useRef(false);
+  const previousCompletedCountRef = useRef(completedTrickCount);
 
   const clearTimers = () => {
     if (lingerTimeoutRef.current !== null) {
@@ -76,20 +88,24 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
 
   useEffect(() => {
     latestTrickSnapshotRef.current = cloneTrick(trick);
+    const previousCompletedCount = previousCompletedCountRef.current;
+    const nextCompletedCount = completedTrickCount;
+    const completedTrick = nextCompletedCount > previousCompletedCount;
+
+    if (completedTrick && lastCompletedTrick) {
+      previousTrickRef.current = cloneTrick(lastCompletedTrick);
+    }
+
     const previous = previousTrickRef.current;
     const previousCards = previous?.cards ?? [];
-    const previousCount = previousCards.length;
     const nextSnapshot = latestTrickSnapshotRef.current;
     const nextCards = nextSnapshot?.cards ?? [];
-    const nextCount = nextCards.length;
-
-    const leaderChanged = previous && nextSnapshot && nextSnapshot.leader !== previous.leader;
-    const completedTrick = previousCount === 4 && (nextCount === 0 || leaderChanged);
     const timersActive = lingerTimeoutRef.current !== null || collectTimeoutRef.current !== null;
 
     if (timersActive) {
       pendingNextSnapshotRef.current = nextSnapshot;
       if (!completedTrick) {
+        previousCompletedCountRef.current = nextCompletedCount;
         return;
       }
     }
@@ -123,6 +139,7 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
         }, TRICK_LINGER_DURATION);
       }
 
+      previousCompletedCountRef.current = nextCompletedCount;
       return;
     }
 
@@ -134,7 +151,8 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
     setCollectingSeat(null);
     previousTrickRef.current = nextSnapshot;
     pendingNextSnapshotRef.current = undefined;
-  }, [trick]);
+    previousCompletedCountRef.current = nextCompletedCount;
+  }, [trick, completedTrickCount, lastCompletedTrick]);
 
   const slots = useMemo(() => {
     return seatingOrder.map((seat, index) => {

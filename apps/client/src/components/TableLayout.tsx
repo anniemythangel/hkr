@@ -252,6 +252,10 @@ export function TableLayout({
                       nameForSeat={nameForSeat}
                       trump={snapshot.trump}
                       seatingOrder={orderedSeats}
+                      completedTrickCount={snapshot.completedTricks.length}
+                      lastCompletedTrick={
+                        snapshot.completedTricks[snapshot.completedTricks.length - 1]
+                      }
                     />
                   )}
                 </div>
