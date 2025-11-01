@@ -44,8 +44,11 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
   );
   const [collectingSeat, setCollectingSeat] = useState<PlayerId | null>(null);
   const previousTrickRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
+  const latestTrickSnapshotRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
+  const pendingNextSnapshotRef = useRef<TrickSnapshot | undefined>();
   const lingerTimeoutRef = useRef<number | null>(null);
   const collectTimeoutRef = useRef<number | null>(null);
+  const unmountedRef = useRef(false);
 
   const clearTimers = () => {
     if (lingerTimeoutRef.current !== null) {
@@ -58,50 +61,79 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
+  const clearTimersAndReset = () => {
     clearTimers();
+    pendingNextSnapshotRef.current = undefined;
+  };
+
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+      clearTimersAndReset();
+    };
+  }, []);
+
+  useEffect(() => {
+    latestTrickSnapshotRef.current = cloneTrick(trick);
     const previous = previousTrickRef.current;
     const previousCards = previous?.cards ?? [];
     const previousCount = previousCards.length;
-    const nextSnapshot = cloneTrick(trick);
+    const nextSnapshot = latestTrickSnapshotRef.current;
     const nextCards = nextSnapshot?.cards ?? [];
     const nextCount = nextCards.length;
 
     const leaderChanged = previous && nextSnapshot && nextSnapshot.leader !== previous.leader;
-    if (previousCount === 4 && (nextCount === 0 || leaderChanged)) {
-      setDisplayedCards(previousCards);
-      setCollectingSeat(null);
+    const completedTrick = previousCount === 4 && (nextCount === 0 || leaderChanged);
+    const timersActive = lingerTimeoutRef.current !== null || collectTimeoutRef.current !== null;
 
-      lingerTimeoutRef.current = window.setTimeout(() => {
-        if (cancelled) return;
+    if (timersActive) {
+      pendingNextSnapshotRef.current = nextSnapshot;
+      if (!completedTrick) {
+        return;
+      }
+    }
 
-        setCollectingSeat(previous?.winner ?? null);
-        lingerTimeoutRef.current = null;
+    if (completedTrick) {
+      pendingNextSnapshotRef.current = nextSnapshot;
 
-        collectTimeoutRef.current = window.setTimeout(() => {
-          if (cancelled) return;
+      if (!timersActive) {
+        setDisplayedCards(previousCards);
+        setCollectingSeat(null);
 
-          setCollectingSeat(null);
-          setDisplayedCards(nextCards);
-          previousTrickRef.current = nextSnapshot;
-          collectTimeoutRef.current = null;
-        }, COLLECT_ANIMATION_DURATION);
-      }, TRICK_LINGER_DURATION);
+        lingerTimeoutRef.current = window.setTimeout(() => {
+          if (unmountedRef.current) return;
 
-      return () => {
-        cancelled = true;
-        clearTimers();
-      };
+          setCollectingSeat(previous?.winner ?? null);
+          lingerTimeoutRef.current = null;
+
+          collectTimeoutRef.current = window.setTimeout(() => {
+            if (unmountedRef.current) return;
+
+            setCollectingSeat(null);
+            const promotedSnapshot =
+              pendingNextSnapshotRef.current ?? latestTrickSnapshotRef.current;
+            const promotedCards = promotedSnapshot?.cards ?? [];
+
+            setDisplayedCards(promotedCards);
+            previousTrickRef.current = promotedSnapshot;
+            pendingNextSnapshotRef.current = undefined;
+            collectTimeoutRef.current = null;
+          }, COLLECT_ANIMATION_DURATION);
+        }, TRICK_LINGER_DURATION);
+      }
+
+      return;
+    }
+
+    if (timersActive) {
+      clearTimersAndReset();
     }
 
     setDisplayedCards(nextCards);
     setCollectingSeat(null);
     previousTrickRef.current = nextSnapshot;
-    return () => {
-      cancelled = true;
-      clearTimers();
-    };
+    pendingNextSnapshotRef.current = undefined;
   }, [trick]);
 
   const slots = useMemo(() => {
