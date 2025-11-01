@@ -15,6 +15,28 @@ const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
 
 const TRICK_LINGER_DURATION = 3000;
 
+type TrickSnapshot = {
+  leader: PlayerId;
+  cards: PlayedCard[];
+  winner?: PlayerId;
+};
+
+function clonePlayedCards(cards: PlayedCard[]): PlayedCard[] {
+  return cards.map((entry) => ({
+    player: entry.player,
+    card: { ...entry.card },
+  }));
+}
+
+function cloneTrick(trick?: Trick): TrickSnapshot | undefined {
+  if (!trick) return undefined;
+  return {
+    leader: trick.leader,
+    winner: trick.winner,
+    cards: clonePlayedCards(trick.cards),
+  };
+}
+
 export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickAreaProps) {
   const [displayedCards, setDisplayedCards] = useState<PlayedCard[]>(() =>
     clonePlayedCards(trick?.cards ?? [])
@@ -38,7 +60,7 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
         setCollectingSeat(null);
         setDisplayedCards(nextCards);
       }, TRICK_LINGER_DURATION);
-      previousTrickRef.current = trick;
+      previousTrickRef.current = nextSnapshot;
       return () => window.clearTimeout(timeout);
     }
 
