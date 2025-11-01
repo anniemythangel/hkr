@@ -16,18 +16,21 @@ const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
 const TRICK_LINGER_DURATION = 3000;
 
 export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickAreaProps) {
-  const [displayedCards, setDisplayedCards] = useState<PlayedCard[]>(trick?.cards ?? []);
+  const [displayedCards, setDisplayedCards] = useState<PlayedCard[]>(() =>
+    clonePlayedCards(trick?.cards ?? [])
+  );
   const [collectingSeat, setCollectingSeat] = useState<PlayerId | null>(null);
-  const previousTrickRef = useRef<Trick | undefined>(undefined);
+  const previousTrickRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
 
   useEffect(() => {
     const previous = previousTrickRef.current;
     const previousCards = previous?.cards ?? [];
     const previousCount = previousCards.length;
-    const nextCards = trick?.cards ?? [];
+    const nextSnapshot = cloneTrick(trick);
+    const nextCards = nextSnapshot?.cards ?? [];
     const nextCount = nextCards.length;
 
-    const leaderChanged = previous && trick && trick.leader !== previous.leader;
+    const leaderChanged = previous && nextSnapshot && nextSnapshot.leader !== previous.leader;
     if (previousCount === 4 && (nextCount === 0 || leaderChanged)) {
       setDisplayedCards(previousCards);
       setCollectingSeat(previous?.winner ?? null);
@@ -40,7 +43,8 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
     }
 
     setDisplayedCards(nextCards);
-    previousTrickRef.current = trick;
+    setCollectingSeat(null);
+    previousTrickRef.current = nextSnapshot;
     return undefined;
   }, [trick]);
 
