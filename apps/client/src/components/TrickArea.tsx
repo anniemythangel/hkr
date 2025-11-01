@@ -13,6 +13,8 @@ type PlayedCard = Trick['cards'][number];
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
 
+const TRICK_LINGER_DURATION = 3000;
+
 export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickAreaProps) {
   const [displayedCards, setDisplayedCards] = useState<PlayedCard[]>(trick?.cards ?? []);
   const [collectingSeat, setCollectingSeat] = useState<PlayerId | null>(null);
@@ -32,7 +34,7 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
       const timeout = window.setTimeout(() => {
         setCollectingSeat(null);
         setDisplayedCards(nextCards);
-      }, 600);
+      }, TRICK_LINGER_DURATION);
       previousTrickRef.current = trick;
       return () => window.clearTimeout(timeout);
     }

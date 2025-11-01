@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Card, MatchSnapshot, PlayerId, Suit, TeamId } from '@hooker/shared'
 import { GAME_ROTATION, PLAYERS, TEAMS } from '@hooker/shared'
 import Hand from './Hand'
@@ -26,6 +26,7 @@ interface TableLayoutProps {
 }
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const
+const TRICK_LINGER_DURATION = 3000
 const SUIT_LABEL: Record<Suit, string> = {
   clubs: 'Clubs ♣',
   diamonds: 'Diamonds ♦',
@@ -70,6 +71,16 @@ export function TableLayout({
   trickHistory,
 }: TableLayoutProps) {
   const [completedAceDraws, setCompletedAceDraws] = useState<Record<number, boolean>>({})
+  const [trickCooldown, setTrickCooldown] = useState(false)
+  const previousTrickState = useRef<{
+    completedCount: number
+    cardCount: number
+    leader: PlayerId | null
+  }>({
+    completedCount: snapshot.completedTricks.length,
+    cardCount: snapshot.currentTrick?.cards.length ?? 0,
+    leader: snapshot.currentTrick?.leader ?? null,
+  })
   const activeSeat = useMemo(() => getActiveSeat(snapshot), [snapshot])
   const celebration = useMemo(() => {
     if (snapshot.phase !== 'MatchOver') return null
@@ -125,10 +136,35 @@ export function TableLayout({
     })
   }, [])
 
+  useEffect(() => {
+    const previous = previousTrickState.current
+    const next = {
+      completedCount: snapshot.completedTricks.length,
+      cardCount: snapshot.currentTrick?.cards.length ?? 0,
+      leader: snapshot.currentTrick?.leader ?? null,
+    }
+
+    const trickFinished =
+      next.completedCount > previous.completedCount ||
+      (previous.cardCount === 4 && (next.cardCount === 0 || next.leader !== previous.leader))
+
+    previousTrickState.current = next
+
+    if (!trickFinished) return undefined
+
+    setTrickCooldown(true)
+    const timeout = window.setTimeout(() => {
+      setTrickCooldown(false)
+    }, TRICK_LINGER_DURATION)
+
+    return () => window.clearTimeout(timeout)
+  }, [snapshot.completedTricks.length, snapshot.currentTrick?.cards.length, snapshot.currentTrick?.leader])
+
   const handActionable = useMemo(() => {
+    if (trickCooldown) return false
     if (activeSeat !== playerId) return false
     return snapshot.phase === 'Discard' || snapshot.phase === 'TrickPlay'
-  }, [activeSeat, playerId, snapshot.phase])
+  }, [activeSeat, playerId, snapshot.phase, trickCooldown])
 
   const dealerName = nameForSeat(snapshot.dealer)
   const activeSeatName = activeSeat ? nameForSeat(activeSeat) : null
