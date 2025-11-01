@@ -138,7 +138,7 @@ export function useSocket(defaultServerUrl: string) {
 
       const socket = io(effectiveServer, {
         autoConnect: false,
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 500,
