@@ -95,6 +95,11 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && requestUrl.pathname === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
+    return;
+  }
+
   if (req.method === 'GET' && requestUrl.pathname === '/') {
     res
       .writeHead(200, { 'Content-Type': 'application/json' })
