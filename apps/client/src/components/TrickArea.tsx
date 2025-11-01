@@ -45,6 +45,7 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
   const previousTrickRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
 
   useEffect(() => {
+    let cancelled = false;
     const previous = previousTrickRef.current;
     const previousCards = previous?.cards ?? [];
     const previousCount = previousCards.length;
@@ -57,17 +58,23 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
       setDisplayedCards(previousCards);
       setCollectingSeat(previous?.winner ?? null);
       const timeout = window.setTimeout(() => {
+        if (cancelled) return;
         setCollectingSeat(null);
         setDisplayedCards(nextCards);
+        previousTrickRef.current = nextSnapshot;
       }, TRICK_LINGER_DURATION);
-      previousTrickRef.current = nextSnapshot;
-      return () => window.clearTimeout(timeout);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timeout);
+      };
     }
 
     setDisplayedCards(nextCards);
     setCollectingSeat(null);
     previousTrickRef.current = nextSnapshot;
-    return undefined;
+    return () => {
+      cancelled = true;
+    };
   }, [trick]);
 
   const slots = useMemo(() => {
