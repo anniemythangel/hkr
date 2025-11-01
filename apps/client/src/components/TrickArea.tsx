@@ -73,8 +73,6 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
       setDisplayedCards(previousCards);
       setCollectingSeat(null);
 
-      const lingerDelay = Math.max(0, TRICK_LINGER_DURATION - COLLECT_ANIMATION_DURATION);
-
       lingerTimeoutRef.current = window.setTimeout(() => {
         if (cancelled) return;
 
@@ -89,7 +87,7 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
           previousTrickRef.current = nextSnapshot;
           collectTimeoutRef.current = null;
         }, COLLECT_ANIMATION_DURATION);
-      }, lingerDelay);
+      }, TRICK_LINGER_DURATION);
 
       return () => {
         cancelled = true;
