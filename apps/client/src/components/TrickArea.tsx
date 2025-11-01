@@ -14,6 +14,7 @@ type PlayedCard = Trick['cards'][number];
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
 
 const TRICK_LINGER_DURATION = 3000;
+const COLLECT_ANIMATION_DURATION = 600;
 
 type TrickSnapshot = {
   leader: PlayerId;
@@ -43,9 +44,23 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
   );
   const [collectingSeat, setCollectingSeat] = useState<PlayerId | null>(null);
   const previousTrickRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
+  const lingerTimeoutRef = useRef<number | null>(null);
+  const collectTimeoutRef = useRef<number | null>(null);
+
+  const clearTimers = () => {
+    if (lingerTimeoutRef.current !== null) {
+      window.clearTimeout(lingerTimeoutRef.current);
+      lingerTimeoutRef.current = null;
+    }
+    if (collectTimeoutRef.current !== null) {
+      window.clearTimeout(collectTimeoutRef.current);
+      collectTimeoutRef.current = null;
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
+    clearTimers();
     const previous = previousTrickRef.current;
     const previousCards = previous?.cards ?? [];
     const previousCount = previousCards.length;
@@ -56,16 +71,29 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
     const leaderChanged = previous && nextSnapshot && nextSnapshot.leader !== previous.leader;
     if (previousCount === 4 && (nextCount === 0 || leaderChanged)) {
       setDisplayedCards(previousCards);
-      setCollectingSeat(previous?.winner ?? null);
-      const timeout = window.setTimeout(() => {
+      setCollectingSeat(null);
+
+      const lingerDelay = Math.max(0, TRICK_LINGER_DURATION - COLLECT_ANIMATION_DURATION);
+
+      lingerTimeoutRef.current = window.setTimeout(() => {
         if (cancelled) return;
-        setCollectingSeat(null);
-        setDisplayedCards(nextCards);
-        previousTrickRef.current = nextSnapshot;
-      }, TRICK_LINGER_DURATION);
+
+        setCollectingSeat(previous?.winner ?? null);
+        lingerTimeoutRef.current = null;
+
+        collectTimeoutRef.current = window.setTimeout(() => {
+          if (cancelled) return;
+
+          setCollectingSeat(null);
+          setDisplayedCards(nextCards);
+          previousTrickRef.current = nextSnapshot;
+          collectTimeoutRef.current = null;
+        }, COLLECT_ANIMATION_DURATION);
+      }, lingerDelay);
+
       return () => {
         cancelled = true;
-        window.clearTimeout(timeout);
+        clearTimers();
       };
     }
 
@@ -74,6 +102,7 @@ export function TrickArea({ trick, nameForSeat, trump, seatingOrder }: TrickArea
     previousTrickRef.current = nextSnapshot;
     return () => {
       cancelled = true;
+      clearTimers();
     };
   }, [trick]);
 
