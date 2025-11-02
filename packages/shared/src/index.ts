@@ -85,6 +85,17 @@ export interface AceDrawEvent {
   draws: { player: PlayerId; card: Card }[];
 }
 
+export type ParticipantRole = 'player' | 'spectator';
+
+export interface SnapshotViewerInfo {
+  role: ParticipantRole;
+  seat: PlayerId;
+}
+
+export interface SpectatorView {
+  seat: PlayerId;
+}
+
 export interface MatchSnapshot {
   phase: Phase;
   gameIndex: number;
@@ -107,6 +118,7 @@ export interface MatchSnapshot {
   gameResults: GameResultSummary[];
   playerGameWins: Record<PlayerId, number>;
   aceDraw?: AceDrawEvent;
+  viewer?: SnapshotViewerInfo;
 }
 
 export type LobbyStatus = 'waitingForPlayers' | 'waitingForReady' | 'ready' | 'inProgress';

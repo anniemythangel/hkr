@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PlayerId, PLAYERS } from '@hooker/shared'
+import { ParticipantRole, PlayerId, PLAYERS } from '@hooker/shared'
 import { useSocket } from '../hooks/useSocket'
 
 const DEFAULT_SERVER = import.meta.env.VITE_WS_URL ?? 'http://localhost:3001'
@@ -10,7 +10,9 @@ export default function Lobby() {
   const { connect, token, clearToken, defaultServer, status, lobby } = useSocket(DEFAULT_SERVER)
   const [serverUrl, setServerUrl] = useState(token?.serverUrl ?? defaultServer)
   const [roomId, setRoomId] = useState(token?.roomId ?? 'demo')
+  const [role, setRole] = useState<ParticipantRole>(token?.role ?? 'player')
   const [playerId, setPlayerId] = useState<PlayerId>(token?.seat ?? 'A')
+  const [followSeat, setFollowSeatState] = useState<PlayerId>(token?.followSeat ?? token?.seat ?? 'A')
   const [name, setName] = useState(token?.name ?? `Player ${playerId}`)
   const [formError, setFormError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
@@ -18,8 +20,25 @@ export default function Lobby() {
   const nav = useNavigate()
 
   useEffect(() => {
-    setName(prev => (!prev || /^Player [A-D]$/.test(prev)) ? `Player ${playerId}` : prev)
-  }, [playerId])
+    setName(prev => {
+      if (role === 'player') {
+        if (!prev || /^Player [A-D]$/.test(prev) || prev === 'Spectator') {
+          return `Player ${playerId}`
+        }
+        return prev
+      }
+      if (!prev || /^Player [A-D]$/.test(prev) || prev === `Player ${playerId}`) {
+        return 'Spectator'
+      }
+      return prev
+    })
+  }, [playerId, role])
+
+  useEffect(() => {
+    if (role === 'spectator') {
+      setFollowSeatState(current => current ?? playerId)
+    }
+  }, [role, playerId])
 
   const lobbyStatusLabel = lobby
     ? lobby.matchStarted
@@ -33,12 +52,18 @@ export default function Lobby() {
 
   const handleJoin = (e: FormEvent) => {
     e.preventDefault()
-    if (!roomId.trim()) return setFormError('Room ID is required')
-    if (!name.trim()) return setFormError('Display name is required')
+    const trimmedRoom = roomId.trim()
+    const trimmedName = name.trim()
+    if (!trimmedRoom) return setFormError('Room ID is required')
+    if (!trimmedName) return setFormError('Display name is required')
     setFormError(null)
     setActionMessage(null)
-    connect({ serverUrl, roomId, seat: playerId, name })
-    nav(`/room/${encodeURIComponent(roomId)}`)
+    if (role === 'spectator') {
+      connect({ serverUrl, roomId: trimmedRoom, name: trimmedName, role: 'spectator', followSeat })
+    } else {
+      connect({ serverUrl, roomId: trimmedRoom, seat: playerId, name: trimmedName, role: 'player' })
+    }
+    nav(`/room/${encodeURIComponent(trimmedRoom)}`)
   }
 
   const handleLaunchNewGame = async () => {
@@ -109,7 +134,7 @@ export default function Lobby() {
       <main className="app-grid">
         <div className="table-area">
           <form className="panel join-panel" onSubmit={handleJoin}>
-            <h2 className="panel-heading">Sit at a table</h2>
+            <h2 className="panel-heading">Join a room</h2>
             <div className="form-grid">
               <label>
                 <span>Server</span>
@@ -119,9 +144,45 @@ export default function Lobby() {
                 <span>Room ID</span>
                 <input value={roomId} onChange={e=>setRoomId(e.target.value)} autoComplete="off" />
               </label>
+              <fieldset className="role-fieldset">
+                <legend>Role</legend>
+                <label className="role-option">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="player"
+                    checked={role === 'player'}
+                    onChange={() => setRole('player')}
+                  />
+                  <span>Player</span>
+                </label>
+                <label className="role-option">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="spectator"
+                    checked={role === 'spectator'}
+                    onChange={() => {
+                      setRole('spectator')
+                      setFollowSeatState(playerId)
+                    }}
+                  />
+                  <span>Spectator</span>
+                </label>
+              </fieldset>
               <label>
-                <span>Seat</span>
-                <select value={playerId} onChange={e=>setPlayerId(e.target.value as PlayerId)}>
+                <span>{role === 'spectator' ? 'Start viewing seat' : 'Seat'}</span>
+                <select
+                  value={role === 'spectator' ? followSeat : playerId}
+                  onChange={e => {
+                    const seat = e.target.value as PlayerId
+                    if (role === 'spectator') {
+                      setFollowSeatState(seat)
+                    } else {
+                      setPlayerId(seat)
+                    }
+                  }}
+                >
                   {PLAYER_IDS.map(id => <option key={id} value={id}>{id}</option>)}
                 </select>
               </label>
@@ -135,7 +196,11 @@ export default function Lobby() {
               <button type="button" onClick={handleLaunchNewGame} disabled={isResetting}>
                 {isResetting ? 'Launching…' : 'New Game'}
               </button>
-              {token && <button type="button" className="link-button" onClick={clearToken}>Clear saved seat</button>}
+              {token && (
+                <button type="button" className="link-button" onClick={clearToken}>
+                  Clear saved session
+                </button>
+              )}
             </div>
             {actionMessage && <div className="success">{actionMessage}</div>}
             {formError && <div className="error">{formError}</div>}

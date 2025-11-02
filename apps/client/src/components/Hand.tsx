@@ -9,13 +9,14 @@ interface HandProps {
   phase: Phase;
   onDiscard: (card: Card) => void;
   onPlay: (card: Card) => void;
+  ariaLabel?: string;
 }
 
 function cardKey(card: Card) {
   return `${card.rank}-${card.suit}`;
 }
 
-export function Hand({ cards, legalKeys, actionable, phase, onDiscard, onPlay }: HandProps) {
+export function Hand({ cards, legalKeys, actionable, phase, onDiscard, onPlay, ariaLabel }: HandProps) {
   const [selected, setSelected] = useState<string | null>(null);
 
   const handleAction = (card: Card) => {
@@ -28,7 +29,7 @@ export function Hand({ cards, legalKeys, actionable, phase, onDiscard, onPlay }:
   };
 
   return (
-    <ul className="hand" role="list" aria-label="Your cards">
+    <ul className="hand" role="list" aria-label={ariaLabel ?? 'Your cards'}>
       {cards.map((card) => {
         const key = cardKey(card);
         const legal = legalKeys.has(key);
