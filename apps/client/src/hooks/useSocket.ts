@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { MatchSnapshot, PlayerId, RoomLobbyState } from '@hooker/shared';
+import { PLAYERS } from '@hooker/shared';
+import type { MatchSnapshot, ParticipantRole, PlayerId, RoomLobbyState } from '@hooker/shared';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -27,12 +28,24 @@ export type ChatMessage = {
   when: number;
 };
 
+const PLAYER_ID_SET = new Set<PlayerId>(PLAYERS);
+
+function isPlayerId(value: unknown): value is PlayerId {
+  return typeof value === 'string' && PLAYER_ID_SET.has(value as PlayerId);
+}
+
 export type RejoinToken = {
   roomId: string;
-  seat: PlayerId;
   name: string;
   serverUrl: string;
+  role: ParticipantRole;
+  seat?: PlayerId;
+  followSeat?: PlayerId;
 };
+
+type ConnectParams =
+  | { serverUrl?: string; roomId: string; name: string; role: 'player'; seat: PlayerId }
+  | { serverUrl?: string; roomId: string; name: string; role: 'spectator'; followSeat?: PlayerId };
 
 const STORAGE_KEY = 'hkr.rejoinToken';
 
@@ -43,11 +56,36 @@ function readToken(): RejoinToken | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as RejoinToken;
-    if (!parsed.roomId || !parsed.seat || !parsed.name) {
+    const parsed = JSON.parse(raw) as Partial<RejoinToken>;
+    if (!parsed || typeof parsed.roomId !== 'string' || typeof parsed.name !== 'string') {
       return null;
     }
-    return parsed;
+    const serverUrl = typeof parsed.serverUrl === 'string' ? parsed.serverUrl : '';
+    const role: ParticipantRole = parsed.role === 'spectator' ? 'spectator' : 'player';
+    if (role === 'player') {
+      if (!isPlayerId(parsed.seat)) {
+        return null;
+      }
+      return {
+        roomId: parsed.roomId,
+        name: parsed.name,
+        serverUrl,
+        role: 'player',
+        seat: parsed.seat,
+      };
+    }
+    const followSeat = isPlayerId(parsed.followSeat)
+      ? parsed.followSeat
+      : isPlayerId(parsed.seat)
+        ? parsed.seat
+        : undefined;
+    return {
+      roomId: parsed.roomId,
+      name: parsed.name,
+      serverUrl,
+      role: 'spectator',
+      followSeat,
+    };
   } catch (error) {
     console.warn('Failed to read rejoin token', error);
     return null;
@@ -97,11 +135,36 @@ export function useSocket(defaultServerUrl: string) {
       const socket = socketRef.current;
       const join = joinRef.current;
       if (!socket || !join) return;
-      socket.emit('join', { roomId: join.roomId, player: join.seat, name: join.name });
-      const message =
-        reason === 'reconnect'
-          ? `Restored seat ${join.seat} in room ${join.roomId}`
-          : `Joining room ${join.roomId} as seat ${join.seat}`;
+      const payload: Record<string, unknown> = { roomId: join.roomId, name: join.name };
+      let message: string;
+      if (join.role === 'spectator') {
+        payload.role = 'spectator';
+        if (join.followSeat) {
+          payload.followSeat = join.followSeat;
+        }
+        const followLabel = join.followSeat ?? 'A';
+        message =
+          reason === 'reconnect'
+            ? `Restored spectator view of seat ${followLabel} in room ${join.roomId}`
+            : `Joining room ${join.roomId} as spectator following seat ${followLabel}`;
+      } else {
+        if (!join.seat) {
+          appendLog({
+            type: 'system',
+            text: 'Missing seat information for player join',
+            when: Date.now(),
+            actor: SYSTEM_ACTOR,
+          });
+          return;
+        }
+        payload.role = 'player';
+        payload.player = join.seat;
+        message =
+          reason === 'reconnect'
+            ? `Restored seat ${join.seat} in room ${join.roomId}`
+            : `Joining room ${join.roomId} as seat ${join.seat}`;
+      }
+      socket.emit('join', payload);
       appendLog({ type: 'system', text: message, when: Date.now(), actor: SYSTEM_ACTOR });
     },
     [appendLog],
@@ -116,15 +179,18 @@ export function useSocket(defaultServerUrl: string) {
   }, []);
 
   const connect = useCallback(
-    (params: { serverUrl?: string; roomId: string; seat: PlayerId; name: string }) => {
+    (params: ConnectParams) => {
       const trimmedRoom = params.roomId.trim();
       const trimmedName = params.name.trim();
       const effectiveServer = (params.serverUrl?.trim() || defaultServerUrl).replace(/\/?$/, '');
+      const role = params.role ?? 'player';
       const join: RejoinToken = {
         roomId: trimmedRoom,
-        seat: params.seat,
         name: trimmedName,
         serverUrl: effectiveServer,
+        role,
+        seat: role === 'player' ? params.seat : undefined,
+        followSeat: role === 'spectator' ? params.followSeat : undefined,
       };
 
       joinRef.current = join;
@@ -172,6 +238,22 @@ export function useSocket(defaultServerUrl: string) {
       });
 
       socket.on('snapshot', (data: MatchSnapshot | null) => {
+        if (data?.viewer) {
+          const current = joinRef.current;
+          if (current) {
+            if (current.role === 'spectator' && current.followSeat !== data.viewer.seat) {
+              const updated = { ...current, followSeat: data.viewer.seat };
+              joinRef.current = updated;
+              setToken(updated);
+              persistToken(updated);
+            } else if (current.role === 'player' && current.seat !== data.viewer.seat) {
+              const updated = { ...current, seat: data.viewer.seat };
+              joinRef.current = updated;
+              setToken(updated);
+              persistToken(updated);
+            }
+          }
+        }
         setSnapshot(data ?? null);
       });
 
@@ -240,8 +322,18 @@ export function useSocket(defaultServerUrl: string) {
   const emitAction = useCallback(
     (event: string, payload: unknown) => {
       const socket = socketRef.current;
+      const join = joinRef.current;
       if (!socket || status !== 'connected') {
         appendLog({ type: 'system', text: 'Not connected to server', when: Date.now(), actor: SYSTEM_ACTOR });
+        return;
+      }
+      if (join?.role === 'spectator') {
+        appendLog({
+          type: 'system',
+          text: 'Spectators cannot perform in-game actions',
+          when: Date.now(),
+          actor: SYSTEM_ACTOR,
+        });
         return;
       }
       socket.emit(event, payload);
@@ -252,13 +344,47 @@ export function useSocket(defaultServerUrl: string) {
   const setReady = useCallback(
     (ready: boolean) => {
       const socket = socketRef.current;
+      const join = joinRef.current;
       if (!socket || status !== 'connected') {
         appendLog({ type: 'system', text: 'Not connected to server', when: Date.now(), actor: SYSTEM_ACTOR });
+        return;
+      }
+      if (join?.role !== 'player') {
+        appendLog({
+          type: 'system',
+          text: 'Only seated players can change ready state',
+          when: Date.now(),
+          actor: SYSTEM_ACTOR,
+        });
         return;
       }
       socket.emit('setReady', { ready });
     },
     [appendLog, status],
+  );
+
+  const setFollowSeat = useCallback(
+    (seat: PlayerId) => {
+      const socket = socketRef.current;
+      const join = joinRef.current;
+      if (!socket || !join || join.role !== 'spectator') {
+        return;
+      }
+      if (!PLAYER_ID_SET.has(seat)) {
+        return;
+      }
+      if (join.followSeat === seat) {
+        return;
+      }
+      const updated: RejoinToken = { ...join, followSeat: seat };
+      joinRef.current = updated;
+      setToken(updated);
+      persistToken(updated);
+      if (status === 'connected') {
+        socket.emit('spectateSeat', { seat });
+      }
+    },
+    [setToken, status],
   );
 
   const sendChat = useCallback(
@@ -298,12 +424,23 @@ export function useSocket(defaultServerUrl: string) {
   useEffect(() => {
     if (!attemptedAutoJoinRef.current && token) {
       attemptedAutoJoinRef.current = true;
-      connect({
-        serverUrl: token.serverUrl || defaultServerUrl,
-        roomId: token.roomId,
-        seat: token.seat,
-        name: token.name,
-      });
+      if (token.role === 'spectator') {
+        connect({
+          serverUrl: token.serverUrl || defaultServerUrl,
+          roomId: token.roomId,
+          name: token.name,
+          role: 'spectator',
+          followSeat: token.followSeat,
+        });
+      } else if (token.seat) {
+        connect({
+          serverUrl: token.serverUrl || defaultServerUrl,
+          roomId: token.roomId,
+          seat: token.seat,
+          name: token.name,
+          role: 'player',
+        });
+      }
     }
   }, [connect, defaultServerUrl, token]);
 
@@ -323,6 +460,7 @@ export function useSocket(defaultServerUrl: string) {
     emitAction,
     sendChat,
     setReady,
+    setFollowSeat,
     roster,
     lobby,
     token,

@@ -6,16 +6,18 @@ import ConsolePanel from '../components/ConsolePanel'
 import ChatBox from '../components/ChatBox'
 import TrickHistory from '../components/TrickHistory'
 import Scoreboard from '../components/Scoreboard'
-import { Suit, Card, PlayerId, TEAMS, GAME_ROTATION, PLAYERS } from '@hooker/shared'
+import { Suit, Card, PlayerId, ParticipantRole, TEAMS, GAME_ROTATION, PLAYERS } from '@hooker/shared'
 
 export default function TablePage() {
   const { roomId: routeRoom } = useParams()
   const {
     status, snapshot, error, logs, chatMessages,
-    connect, emitAction, sendChat, setReady, roster, lobby, token, defaultServer
+    connect, emitAction, sendChat, setReady, setFollowSeat,
+    roster, lobby, token, defaultServer
   } = useSocket(import.meta.env.VITE_WS_URL ?? 'http://localhost:3001')
   const nav = useNavigate()
-  const displayName = token?.name ?? 'Player'
+  const participantRole: ParticipantRole = token?.role ?? 'player'
+  const displayName = token?.name ?? (participantRole === 'spectator' ? 'Spectator' : 'Player')
 
   useEffect(() => {
     if (!token) {
@@ -27,21 +29,40 @@ export default function TablePage() {
       return
     }
     if (status === 'disconnected') {
-      connect({
-        serverUrl: token.serverUrl || defaultServer,
-        roomId: token.roomId,
-        seat: token.seat,
-        name: token.name,
-      })
+      if (participantRole === 'spectator') {
+        connect({
+          serverUrl: token.serverUrl || defaultServer,
+          roomId: token.roomId,
+          name: token.name,
+          role: 'spectator',
+          followSeat: token.followSeat,
+        })
+      } else if (token.seat) {
+        connect({
+          serverUrl: token.serverUrl || defaultServer,
+          roomId: token.roomId,
+          seat: token.seat,
+          name: token.name,
+          role: 'player',
+        })
+      }
     }
-  }, [token, status, connect, defaultServer, nav, routeRoom])
+  }, [token, status, connect, defaultServer, nav, routeRoom, participantRole])
 
   const legalKeys = useMemo(
     () => new Set(snapshot?.legalCards.map((c) => `${c.rank}-${c.suit}`) ?? []),
     [snapshot?.legalCards],
   )
-  const mySeat: PlayerId | undefined = token?.seat
-  const mySeatState = mySeat ? lobby?.seats?.[mySeat] : undefined
+  const isSpectator = participantRole === 'spectator'
+  const playerSeat: PlayerId | undefined = !isSpectator ? token?.seat : undefined
+  const viewerSeat: PlayerId | null = useMemo(() => {
+    if (snapshot?.viewer?.seat) return snapshot.viewer.seat
+    if (!isSpectator && token?.seat) return token.seat
+    if (isSpectator && token?.followSeat) return token.followSeat
+    const seats = snapshot?.seating ?? []
+    return seats.length > 0 ? seats[0] : null
+  }, [snapshot?.viewer?.seat, isSpectator, token?.seat, token?.followSeat, snapshot?.seating])
+  const mySeatState = playerSeat ? lobby?.seats?.[playerSeat] : undefined
   const nameForSeat = useMemo(
     () => (seat: PlayerId) => {
       const lobbyName = lobby?.seats?.[seat]?.name?.trim()
@@ -65,11 +86,11 @@ export default function TablePage() {
   const seatingOrder = useMemo(() => {
     const seats = snapshot?.seating ?? []
     if (!seats.length) return []
-    if (mySeat == null) return seats.slice()
-    const index = seats.indexOf(mySeat)
+    if (!viewerSeat) return seats.slice()
+    const index = seats.indexOf(viewerSeat)
     if (index <= 0) return seats.slice()
     return [...seats.slice(index), ...seats.slice(0, index)]
-  }, [snapshot, mySeat])
+  }, [snapshot, viewerSeat])
 
   const trickCounts = useMemo(() => {
     if (!snapshot) return { NorthSouth: 0, EastWest: 0 };
@@ -158,9 +179,9 @@ export default function TablePage() {
   }, [lobby, lobbyJoinedCount, lobbyReadyCount])
 
   const readyButtonDisabled =
-    status !== 'connected' || !mySeatState?.present || Boolean(lobby?.matchStarted)
+    status !== 'connected' || !playerSeat || !mySeatState?.present || Boolean(lobby?.matchStarted)
   const readyButtonLabel = mySeatState?.ready ? 'Cancel ready' : 'Ready up'
-  const showReadyButton = Boolean(mySeat && lobby && !lobby.matchStarted)
+  const showReadyButton = Boolean(!isSpectator && playerSeat && lobby && !lobby.matchStarted)
 
   return (
     <div className="page">
@@ -174,11 +195,12 @@ export default function TablePage() {
 
       <main>
         {error ? <div className="error" role="alert">{error}</div> : null}
-        {snapshot && mySeat ? (
+        {snapshot && viewerSeat ? (
           <>
             <TableLayout
               snapshot={snapshot}
-              playerId={mySeat}
+              viewerSeat={viewerSeat}
+              viewerRole={participantRole}
               displayName={displayName}
               nameForSeat={nameForSeat}
               legalKeys={legalKeys}
@@ -187,6 +209,7 @@ export default function TablePage() {
               onDiscard={handleDiscard}
               onPlay={handlePlayCard}
               onDeclareTrump={handleDeclareTrump}
+              onFollowSeat={isSpectator ? setFollowSeat : undefined}
               scoreboard={
                 <Scoreboard
                   scores={snapshot.scores}
@@ -227,19 +250,20 @@ export default function TablePage() {
           <section className="panel placeholder-panel waiting-panel">
             {status !== 'connected' ? (
               <p>Reconnecting…</p>
-            ) : lobby?.matchStarted ? (
-              <>
-                <h2>Loading match…</h2>
-                <p>{lobbyStatusText}</p>
-              </>
-            ) : lobby ? (
+          ) : lobby?.matchStarted ? (
+            <>
+              <h2>Loading match…</h2>
+              <p>{lobbyStatusText}</p>
+            </>
+          ) : lobby ? (
               <>
                 <h2>Waiting in lobby</h2>
                 <p>{lobbyStatusText}</p>
                 <ul className="waiting-seat-list">
                   {PLAYERS.map((seat) => {
                     const seatState = lobby.seats[seat]
-                    const isSelf = seat === mySeat
+                    const isSelf = !isSpectator && seat === playerSeat
+                    const isViewing = isSpectator && viewerSeat === seat
                     const name = seatState?.name ?? `Seat ${seat}`
                     const seatStatus = !seatState?.present
                       ? 'Open seat'
@@ -255,7 +279,7 @@ export default function TablePage() {
                       <li key={seat} className="waiting-seat-row" data-status={statusKey}>
                         <span>
                           {seat}: {name}
-                          {isSelf ? ' (You)' : ''}
+                          {isSelf ? ' (You)' : isViewing ? ' (Viewing)' : ''}
                         </span>
                         <span>{seatStatus}</span>
                       </li>

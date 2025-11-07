@@ -7,6 +7,7 @@ interface SeatProps {
   seat: PlayerId;
   name: string;
   isSelf: boolean;
+  isViewing?: boolean;
   isDealer: boolean;
   isActive: boolean;
   cardsRemaining?: number;
@@ -18,18 +19,20 @@ export function Seat({
   seat,
   name,
   isSelf,
+  isViewing = false,
   isDealer,
   isActive,
   cardsRemaining,
   children,
   renderBodyWhenEmpty = true,
 }: SeatProps) {
-  const seatLabel = isSelf ? 'You' : `Seat ${seat}`;
+  const seatLabel = isSelf ? 'You' : isViewing ? `Viewing seat ${seat}` : `Seat ${seat}`;
+  const selfLike = isSelf || isViewing;
   const hasBodyContent = Children.count(children) > 0;
   const shouldRenderBody = hasBodyContent || renderBodyWhenEmpty;
   return (
     <section
-      className={`seat-panel${isSelf ? ' seat-panel-self' : ''}${isActive ? ' seat-panel-active' : ''}`}
+      className={`seat-panel${selfLike ? ' seat-panel-self' : ''}${isActive ? ' seat-panel-active' : ''}`}
       aria-label={`${seatLabel}${isActive ? ', currently acting' : ''}`.trim()}
     >
       <header className="seat-panel-header">
@@ -48,7 +51,7 @@ export function Seat({
           {isDealer ? <DealerChip /> : null}
         </div>
       </header>
-      {!isSelf && typeof cardsRemaining === 'number' ? (
+      {!selfLike && typeof cardsRemaining === 'number' ? (
         <p className="seat-panel-hand-count" aria-live="polite">
           {cardsRemaining} card{cardsRemaining === 1 ? '' : 's'} remaining
         </p>

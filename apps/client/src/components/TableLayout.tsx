@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Card, MatchSnapshot, PlayerId, Suit, TeamId } from '@hooker/shared'
+import type { Card, MatchSnapshot, ParticipantRole, PlayerId, Suit, TeamId } from '@hooker/shared'
 import { GAME_ROTATION, PLAYERS, TEAMS } from '@hooker/shared'
 import Hand from './Hand'
 import Seat from './Seat'
@@ -10,7 +10,8 @@ import AceDrawAnimation from './AceDrawAnimation'
 
 interface TableLayoutProps {
   snapshot: MatchSnapshot
-  playerId: PlayerId
+  viewerSeat: PlayerId
+  viewerRole: ParticipantRole
   displayName: string
   nameForSeat: (seat: PlayerId) => string
   legalKeys: Set<string>
@@ -19,6 +20,7 @@ interface TableLayoutProps {
   onDiscard: (card: Card) => void
   onPlay: (card: Card) => void
   onDeclareTrump: (suit: Suit) => void
+  onFollowSeat?: (seat: PlayerId) => void
   scoreboard: ReactNode
   consolePanel: ReactNode
   chatBox: ReactNode
@@ -56,7 +58,8 @@ function getActiveSeat(snapshot: MatchSnapshot): PlayerId | null {
 
 export function TableLayout({
   snapshot,
-  playerId,
+  viewerSeat,
+  viewerRole,
   displayName,
   nameForSeat,
   legalKeys,
@@ -65,6 +68,7 @@ export function TableLayout({
   onDiscard,
   onPlay,
   onDeclareTrump,
+  onFollowSeat,
   scoreboard,
   consolePanel,
   chatBox,
@@ -99,9 +103,9 @@ export function TableLayout({
 
   const celebrationName = useMemo(() => {
     if (!celebration) return null
-    if (celebration.player === playerId) return displayName
+    if (viewerRole === 'player' && celebration.player === viewerSeat) return displayName
     return nameForSeat(celebration.player)
-  }, [celebration, displayName, nameForSeat, playerId])
+  }, [celebration, displayName, nameForSeat, viewerRole, viewerSeat])
 
   const celebrationAudioSrc = useMemo(() => {
     if (!celebration) return null
@@ -136,6 +140,14 @@ export function TableLayout({
     })
   }, [])
 
+  const handleFollowSeat = useCallback(
+    (seat: PlayerId) => {
+      if (viewerRole !== 'spectator' || !onFollowSeat) return
+      onFollowSeat(seat)
+    },
+    [onFollowSeat, viewerRole],
+  )
+
   useEffect(() => {
     const previous = previousTrickState.current
     const next = {
@@ -161,17 +173,21 @@ export function TableLayout({
   }, [snapshot.completedTricks.length, snapshot.currentTrick?.cards.length, snapshot.currentTrick?.leader])
 
   const handActionable = useMemo(() => {
+    if (viewerRole !== 'player') return false
     if (trickCooldown) return false
-    if (activeSeat !== playerId) return false
+    if (activeSeat !== viewerSeat) return false
     return snapshot.phase === 'Discard' || snapshot.phase === 'TrickPlay'
-  }, [activeSeat, playerId, snapshot.phase, trickCooldown])
+  }, [activeSeat, snapshot.phase, trickCooldown, viewerRole, viewerSeat])
 
   const dealerName = nameForSeat(snapshot.dealer)
   const activeSeatName = activeSeat ? nameForSeat(activeSeat) : null
-  const canAcceptKitty = snapshot.phase === 'KittyDecision' && snapshot.kittyOfferee === playerId
+  const canAcceptKitty =
+    viewerRole === 'player' && snapshot.phase === 'KittyDecision' && snapshot.kittyOfferee === viewerSeat
   const kittyPassDisabled = snapshot.forcedAccept && snapshot.kittyOfferee === snapshot.acceptor
-  const canDeclareTrump = snapshot.phase === 'TrumpDeclaration' && snapshot.dealer === playerId
-  const canDiscard = snapshot.phase === 'Discard' && snapshot.acceptor === playerId
+  const canDeclareTrump =
+    viewerRole === 'player' && snapshot.phase === 'TrumpDeclaration' && snapshot.dealer === viewerSeat
+  const canDiscard =
+    viewerRole === 'player' && snapshot.phase === 'Discard' && snapshot.acceptor === viewerSeat
   const showActionRow = canAcceptKitty || canDeclareTrump || canDiscard
   const kittyCountCaption =
     snapshot.kittySize === 0
@@ -208,6 +224,26 @@ export function TableLayout({
                 ? 'swept the rotation with flawless victory'
                 : 'endured every battle and will rise again'}
             </span>
+          </div>
+        ) : null}
+        {viewerRole === 'spectator' && onFollowSeat ? (
+          <div className="spectator-toolbar" role="toolbar" aria-label="Spectator controls">
+            <span className="spectator-toolbar-label">
+              Viewing seat {viewerSeat} — {nameForSeat(viewerSeat)}
+            </span>
+            <div className="spectator-toolbar-buttons">
+              {snapshot.seating.map((seat) => (
+                <button
+                  key={seat}
+                  type="button"
+                  onClick={() => handleFollowSeat(seat)}
+                  disabled={seat === viewerSeat}
+                >
+                  {nameForSeat(seat)}
+                  {seat === viewerSeat ? ' (Viewing)' : ''}
+                </button>
+              ))}
+            </div>
           </div>
         ) : null}
         <div className="table-ring">
@@ -264,9 +300,11 @@ export function TableLayout({
 
             {orderedSeats.map((seat, index) => {
               const position = POSITIONS[index] ?? 'top'
-              const isSelf = seat === playerId
+              const isPerspectiveSeat = seat === viewerSeat
+              const isSelf = viewerRole === 'player' && isPerspectiveSeat
+              const isViewing = viewerRole === 'spectator' && isPerspectiveSeat
               const seatName = isSelf ? displayName : nameForSeat(seat)
-              const cardsRemaining = isSelf
+              const cardsRemaining = isPerspectiveSeat
                 ? snapshot.selfHand.length
                 : snapshot.otherHandCounts[seat] ?? 0
 
@@ -276,12 +314,13 @@ export function TableLayout({
                     seat={seat}
                     name={seatName}
                     isSelf={isSelf}
+                    isViewing={isViewing}
                     isDealer={dealerRevealed && snapshot.dealer === seat}
                     isActive={dealerRevealed && activeSeat === seat}
                     cardsRemaining={cardsRemaining}
-                    renderBodyWhenEmpty={!isSelf}
+                    renderBodyWhenEmpty={!isPerspectiveSeat}
                   >
-                    {isSelf ? null : (
+                    {isPerspectiveSeat ? null : (
                       <div className="seat-card-backs" aria-hidden="true">
                         <span className="seat-card-count">{cardsRemaining}</span>
                         <span className="seat-card-label">cards</span>
@@ -303,6 +342,7 @@ export function TableLayout({
               phase={snapshot.phase}
               onDiscard={onDiscard}
               onPlay={onPlay}
+              ariaLabel={viewerRole === 'player' ? 'Your cards' : 'Viewing cards'}
             />
           </div>
           {showKittyInfo ? (

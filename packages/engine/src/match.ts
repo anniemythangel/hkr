@@ -1,6 +1,7 @@
 import {
   Card,
   MatchSnapshot,
+  ParticipantRole,
   Phase,
   PlayerId,
   Suit,
@@ -607,7 +608,11 @@ function legalCardsForPlayer(state: GameState, player: PlayerId): Card[] {
   return playerHand.filter((card) => effectiveSuit(card, state.hand.trump!) === ledSuit);
 }
 
-export function getSnapshot(state: GameState, viewer: PlayerId): MatchSnapshot {
+export function getSnapshot(
+  state: GameState,
+  viewer: PlayerId,
+  options?: { role?: ParticipantRole },
+): MatchSnapshot {
   // The top card of the kitty is only visible during the kitty decision phase.
   const kittyTopCard =
     state.phase === 'KittyDecision' && state.hand.kitty.length > 0 ? state.hand.kitty[0] : null;
@@ -638,6 +643,8 @@ export function getSnapshot(state: GameState, viewer: PlayerId): MatchSnapshot {
       };
     }
   }
+  const role: ParticipantRole = options?.role ?? 'player';
+
   return {
     phase: state.phase,
     gameIndex: state.gameIndex,
@@ -667,5 +674,6 @@ export function getSnapshot(state: GameState, viewer: PlayerId): MatchSnapshot {
     gameResults: state.gameResults,
     playerGameWins: state.playerGameWins,
     aceDraw,
+    viewer: { role, seat: viewer },
   };
 }

@@ -10,7 +10,7 @@ import {
   handlePlayCard,
   advanceState,
 } from '@hooker/engine';
-import { GAME_ROTATION, PLAYERS, PlayerId, TEAMS } from '@hooker/shared';
+import { GAME_ROTATION, PLAYERS, PlayerId, ParticipantRole, TEAMS } from '@hooker/shared';
 import type { HandScoreSummary, RoomLobbyState } from '@hooker/shared';
 import type { GameState } from '@hooker/engine';
 
@@ -155,6 +155,9 @@ const roomState = new Map<string, GameState>();
 const roomLogs = new Map<string, LogEntry[]>();
 const roomChats = new Map<string, ChatEntry[]>();
 const roomRosters = new Map<string, Map<PlayerId, { name: string; socketId: string; ready: boolean }>>();
+const roomSpectators = new Map<string, Map<string, { followSeat: PlayerId }>>();
+
+const MAX_SPECTATORS_PER_ROOM = 5;
 
 const SYSTEM_ACTOR: ActorInfo = { seat: null, name: 'System' };
 
@@ -165,6 +168,27 @@ function ensureRoster(roomId: string) {
     roomRosters.set(roomId, roster);
   }
   return roster;
+}
+
+function ensureSpectators(roomId: string) {
+  let spectators = roomSpectators.get(roomId);
+  if (!spectators) {
+    spectators = new Map();
+    roomSpectators.set(roomId, spectators);
+  }
+  return spectators;
+}
+
+function defaultFollowSeat(roomId: string): PlayerId {
+  const state = roomState.get(roomId);
+  if (state && state.seating.length > 0) {
+    return state.seating[0];
+  }
+  const rotation = GAME_ROTATION[0];
+  if (rotation?.seating?.length) {
+    return rotation.seating[0];
+  }
+  return PLAYERS[0];
 }
 
 function getActorInfo(roomId: string, seat: PlayerId | null | undefined): ActorInfo {
@@ -184,13 +208,30 @@ function formatSuitName(raw: string) {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-const joinSchema = z.object({
-  roomId: z.string(),
-  player: z.custom<PlayerId>((val) => ['A', 'B', 'C', 'D'].includes(String(val)), {
-    message: 'Invalid player id',
-  }),
-  name: z.string().min(1),
+const playerIdSchema = z.custom<PlayerId>((val) => PLAYERS.includes(String(val) as PlayerId), {
+  message: 'Invalid player id',
 });
+
+const joinSchema = z
+  .object({
+    roomId: z.string(),
+    name: z.string().min(1),
+    role: z.enum(['player', 'spectator']).optional(),
+    player: playerIdSchema.optional(),
+    followSeat: playerIdSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    const role: ParticipantRole = value.role ?? 'player';
+    if (role === 'player') {
+      if (!value.player) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Player seat is required' });
+      }
+      return;
+    }
+    if (value.followSeat && !PLAYERS.includes(value.followSeat)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid follow seat' });
+    }
+  });
 
 const kittyDecisionSchema = z.object({
   accept: z.boolean(),
@@ -224,10 +265,16 @@ const readyStateSchema = z.object({
   ready: z.boolean(),
 });
 
+const spectateSeatSchema = z.object({
+  seat: playerIdSchema,
+});
+
 type SocketData = {
   roomId?: string;
   player?: PlayerId;
   name?: string;
+  role?: ParticipantRole;
+  followSeat?: PlayerId;
 };
 
 io.on('connection', (socket) => {
@@ -240,30 +287,63 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const { roomId, player, name } = parse.data;
+    const { roomId, name } = parse.data;
+    const role: ParticipantRole = parse.data.role ?? 'player';
     socket.data.roomId = roomId;
-    socket.data.player = player;
     socket.data.name = name;
+    socket.data.role = role;
+    socket.data.player = undefined;
+    socket.data.followSeat = undefined;
 
-    const roster = ensureRoster(roomId);
-    const existing = roster.get(player);
-    if (existing && existing.socketId !== socket.id) {
-      socket.emit('errorMessage', 'That seat is already taken.');
-      return;
-    }
+    if (role === 'player') {
+      const player = (parse.data.player ?? undefined) as PlayerId | undefined;
+      if (!player) {
+        socket.emit('errorMessage', 'Player seat is required.');
+        return;
+      }
+      socket.data.player = player;
 
-    socket.join(roomId);
+      const roster = ensureRoster(roomId);
+      const existing = roster.get(player);
+      if (existing && existing.socketId !== socket.id) {
+        socket.emit('errorMessage', 'That seat is already taken.');
+        return;
+      }
 
-    const readyState = roomState.has(roomId) ? existing?.ready ?? false : false;
-    roster.set(player, { name, socketId: socket.id, ready: readyState });
-    emitRoster(roomId);
-    emitLobbyState(roomId);
+      socket.join(roomId);
 
-    const state = roomState.get(roomId);
-    if (state) {
-      socket.emit('snapshot', getSnapshot(state, player));
+      const readyState = roomState.has(roomId) ? existing?.ready ?? false : false;
+      roster.set(player, { name, socketId: socket.id, ready: readyState });
+      emitRoster(roomId);
+      emitLobbyState(roomId);
+
+      const state = roomState.get(roomId);
+      if (state) {
+        socket.emit('snapshot', getSnapshot(state, player, { role: 'player' }));
+      } else {
+        socket.emit('snapshot', null);
+      }
     } else {
-      socket.emit('snapshot', null);
+      const followSeat = (parse.data.followSeat ?? defaultFollowSeat(roomId)) as PlayerId;
+      const spectators = ensureSpectators(roomId);
+      if (!spectators.has(socket.id) && spectators.size >= MAX_SPECTATORS_PER_ROOM) {
+        socket.emit('errorMessage', 'Spectator limit reached for this room.');
+        return;
+      }
+
+      socket.join(roomId);
+
+      spectators.set(socket.id, { followSeat });
+      socket.data.followSeat = followSeat;
+
+      const state = roomState.get(roomId);
+      if (state) {
+        socket.emit('snapshot', getSnapshot(state, followSeat, { role: 'spectator' }));
+      } else {
+        socket.emit('snapshot', null);
+      }
+      socket.emit('roster', getRosterPayload(roomId));
+      socket.emit('lobby', getLobbyPayload(roomId));
     }
 
     const logs = roomLogs.get(roomId) ?? [];
@@ -274,6 +354,29 @@ io.on('connection', (socket) => {
     const chats = roomChats.get(roomId) ?? [];
     for (const entry of chats) {
       socket.emit('chat', entry);
+    }
+  });
+
+  socket.on('spectateSeat', (raw) => {
+    if (socket.data.role !== 'spectator') return;
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+    const data = spectateSeatSchema.safeParse(raw);
+    if (!data.success) {
+      socket.emit('errorMessage', data.error.message);
+      return;
+    }
+    const seat = data.data.seat;
+    const spectators = ensureSpectators(roomId);
+    if (!spectators.has(socket.id) && spectators.size >= MAX_SPECTATORS_PER_ROOM) {
+      socket.emit('errorMessage', 'Spectator limit reached for this room.');
+      return;
+    }
+    spectators.set(socket.id, { followSeat: seat });
+    socket.data.followSeat = seat;
+    const state = roomState.get(roomId);
+    if (state) {
+      socket.emit('snapshot', getSnapshot(state, seat, { role: 'spectator' }));
     }
   });
 
@@ -436,9 +539,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const { roomId, player } = socket.data;
-    if (!roomId || !player) return;
+    const { roomId, player, role } = socket.data;
+    if (!roomId) return;
     socket.leave(roomId);
+    if (role === 'spectator') {
+      const spectators = roomSpectators.get(roomId);
+      if (!spectators) return;
+      spectators.delete(socket.id);
+      if (spectators.size === 0) {
+        roomSpectators.delete(roomId);
+      }
+      return;
+    }
+    if (!player) return;
     const roster = roomRosters.get(roomId);
     if (!roster) return;
     const entry = roster.get(player);
@@ -577,9 +690,16 @@ function broadcastSnapshot(roomId: string, state: GameState) {
   for (const socketId of room) {
     const socket = io.sockets.sockets.get(socketId);
     if (!socket) continue;
+    const role = socket.data.role as ParticipantRole | undefined;
+    if (role === 'spectator') {
+      const seat = socket.data.followSeat as PlayerId | undefined;
+      if (!seat) continue;
+      socket.emit('snapshot', getSnapshot(state, seat, { role: 'spectator' }));
+      continue;
+    }
     const player = socket.data.player as PlayerId | undefined;
     if (!player) continue;
-    socket.emit('snapshot', getSnapshot(state, player));
+    socket.emit('snapshot', getSnapshot(state, player, { role: 'player' }));
   }
 }
 
