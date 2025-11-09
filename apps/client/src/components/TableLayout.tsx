@@ -140,6 +140,15 @@ export function TableLayout({
     })
   }, [])
 
+  useEffect(() => {
+    if (!snapshot.aceDraw) return
+    const { gameIndex } = snapshot.aceDraw
+    if (completedAceDraws[gameIndex]) return
+    const pastDealerDrawPhase = snapshot.phase !== 'MatchSetup' || snapshot.kittySize > 0
+    if (!pastDealerDrawPhase) return
+    markAceDrawComplete(gameIndex)
+  }, [completedAceDraws, markAceDrawComplete, snapshot])
+
   const handleFollowSeat = useCallback(
     (seat: PlayerId) => {
       if (viewerRole !== 'spectator' || !onFollowSeat) return
