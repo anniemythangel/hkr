@@ -38,6 +38,7 @@ export interface GameState {
   dealer: PlayerId;
   scores: Record<TeamId, number>;
   hand: HandState;
+  lastCompletedTrick?: Trick;
   lastHandSummary?: HandScoreSummary;
   gameResults: GameResultSummary[];
   playerGameWins: Record<PlayerId, number>;

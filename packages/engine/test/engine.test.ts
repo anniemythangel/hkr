@@ -85,6 +85,31 @@ const aceDrawDeck = (() => {
   return [...prefix, ...remainder];
 })();
 
+const scriptedPassers: PlayerId[] = ['C', 'B', 'D', 'A'];
+
+const scriptedPlaySequence: Array<[PlayerId, Card]> = [
+  ['A', card('9', 'S')],
+  ['B', card('9', 'D')],
+  ['D', card('9', 'H')],
+  ['C', card('10', 'C')],
+  ['A', card('10', 'S')],
+  ['B', card('10', 'D')],
+  ['D', card('10', 'H')],
+  ['C', card('Q', 'C')],
+  ['A', card('Q', 'S')],
+  ['B', card('Q', 'D')],
+  ['D', card('Q', 'H')],
+  ['C', card('K', 'C')],
+  ['A', card('K', 'S')],
+  ['B', card('K', 'D')],
+  ['D', card('K', 'H')],
+  ['C', card('A', 'C')],
+  ['A', card('A', 'S')],
+  ['B', card('A', 'D')],
+  ['D', card('A', 'H')],
+  ['C', card('J', 'C')],
+];
+
 describe('deck creation', () => {
   it('creates 24 unique cards', () => {
     const deck = createDeck();
@@ -172,38 +197,14 @@ describe('kitty flow and forced accept', () => {
 
   it('plays a full scripted hand with boomerang acceptance and awards a single team', () => {
     let state = createMatch({ decks: [aceDeck, handDeck] });
-    const passers: PlayerId[] = ['C', 'B', 'D', 'A'];
-    for (const player of passers) {
+    for (const player of scriptedPassers) {
       state = unwrap(handleKittyDecision(state, player, false));
     }
     state = unwrap(handleKittyDecision(state, 'C', true));
     state = unwrap(handleDiscard(state, 'C', card('9', 'C')));
     state = unwrap(handleDeclareTrump(state, 'A', 'spades'));
 
-    const playSequence: Array<[PlayerId, Card]> = [
-      ['A', card('9', 'S')],
-      ['B', card('9', 'D')],
-      ['D', card('9', 'H')],
-      ['C', card('10', 'C')],
-      ['A', card('10', 'S')],
-      ['B', card('10', 'D')],
-      ['D', card('10', 'H')],
-      ['C', card('Q', 'C')],
-      ['A', card('Q', 'S')],
-      ['B', card('Q', 'D')],
-      ['D', card('Q', 'H')],
-      ['C', card('K', 'C')],
-      ['A', card('K', 'S')],
-      ['B', card('K', 'D')],
-      ['D', card('K', 'H')],
-      ['C', card('A', 'C')],
-      ['A', card('A', 'S')],
-      ['B', card('A', 'D')],
-      ['D', card('A', 'H')],
-      ['C', card('J', 'C')],
-    ];
-
-    for (const [player, playCard] of playSequence) {
+    for (const [player, playCard] of scriptedPlaySequence) {
       const result = handlePlayCard(state, player, playCard);
       expect(result.ok).toBe(true);
       state = unwrap(result);
@@ -217,6 +218,73 @@ describe('kitty flow and forced accept', () => {
       tricksWon: { NorthSouth: 4, EastWest: 1 },
     });
     expect(state.scores).toEqual({ NorthSouth: 2, EastWest: 0 });
+    expect(state.lastCompletedTrick).toBeDefined();
+
+    const snapshotAtScore = getSnapshot(state, 'A');
+    expect(snapshotAtScore.lastCompletedTrick).toEqual(
+      snapshotAtScore.completedTricks[snapshotAtScore.completedTricks.length - 1],
+    );
+
+    const setupState = advanceState(state);
+    expect(setupState.phase).toBe('MatchSetup');
+    expect(setupState.lastCompletedTrick).toEqual(state.lastCompletedTrick);
+
+    const snapshotAtSetup = getSnapshot(setupState, 'A');
+    expect(snapshotAtSetup.lastCompletedTrick).toEqual(state.lastCompletedTrick);
+
+    const nextHandState = advanceState(setupState);
+    expect(nextHandState.phase).toBe('KittyDecision');
+    expect(nextHandState.hand.completedTricks).toHaveLength(0);
+    expect(nextHandState.lastCompletedTrick).toEqual(state.lastCompletedTrick);
+
+    const snapshotAtNextHand = getSnapshot(nextHandState, 'A');
+    expect(snapshotAtNextHand.completedTricks).toHaveLength(0);
+    expect(snapshotAtNextHand.lastCompletedTrick).toEqual(state.lastCompletedTrick);
+  });
+
+  it('carries the last completed trick through game transitions', () => {
+    let state = createMatch({ decks: [aceDeck, handDeck, handDeck] });
+    for (const player of scriptedPassers) {
+      state = unwrap(handleKittyDecision(state, player, false));
+    }
+    state = unwrap(handleKittyDecision(state, 'C', true));
+    state = unwrap(handleDiscard(state, 'C', card('9', 'C')));
+    state = unwrap(handleDeclareTrump(state, 'A', 'spades'));
+    state = {
+      ...state,
+      scores: { NorthSouth: 8, EastWest: 0 },
+    };
+
+    for (const [player, playCard] of scriptedPlaySequence) {
+      state = unwrap(handlePlayCard(state, player, playCard));
+    }
+
+    expect(state.phase).toBe('HandScore');
+    const lastTrick = state.lastCompletedTrick;
+    expect(lastTrick).toBeDefined();
+
+    const gameOverState = advanceState(state);
+    expect(gameOverState.phase).toBe('GameOver');
+    expect(gameOverState.lastCompletedTrick).toEqual(lastTrick);
+    expect(getSnapshot(gameOverState, 'A').lastCompletedTrick).toEqual(lastTrick);
+
+    const nextGameSetup = advanceState(gameOverState);
+    expect(nextGameSetup.phase).toBe('MatchSetup');
+    expect(nextGameSetup.lastCompletedTrick).toEqual(lastTrick);
+    expect(getSnapshot(nextGameSetup, 'A').lastCompletedTrick).toEqual(lastTrick);
+
+    const nextGameHand = advanceState(nextGameSetup);
+    expect(nextGameHand.phase).toBe('KittyDecision');
+    expect(nextGameHand.hand.completedTricks).toHaveLength(0);
+    expect(nextGameHand.lastCompletedTrick).toEqual(lastTrick);
+    expect(getSnapshot(nextGameHand, 'A').lastCompletedTrick).toEqual(lastTrick);
+
+    const matchOverState = advanceState({
+      ...gameOverState,
+      gameIndex: GAME_ROTATION.length - 1,
+    });
+    expect(matchOverState.phase).toBe('MatchOver');
+    expect(matchOverState.lastCompletedTrick).toEqual(lastTrick);
   });
 });
 

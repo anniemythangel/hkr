@@ -132,6 +132,10 @@ export function TableLayout({
   const showAceDraw = Boolean(activeAceDraw && !completedAceDraws[activeAceDraw.gameIndex])
   const dealerRevealed = !showAceDraw
   const showKittyInfo = snapshot.kittySize > 0 || snapshot.phase === 'KittyDecision'
+  const lingeringTrick =
+    snapshot.completedTricks.length > 0
+      ? snapshot.completedTricks[snapshot.completedTricks.length - 1]
+      : snapshot.lastCompletedTrick
 
   const markAceDrawComplete = useCallback((gameIndex: number) => {
     setCompletedAceDraws((previous) => {
@@ -158,7 +162,8 @@ export function TableLayout({
 
     const trickFinished =
       next.completedCount > previous.completedCount ||
-      (previous.cardCount === 4 && (next.cardCount === 0 || next.leader !== previous.leader))
+      (previous.cardCount === 4 && (next.cardCount === 0 || next.leader !== previous.leader)) ||
+      (next.completedCount === 0 && previous.completedCount > 0 && snapshot.lastCompletedTrick)
 
     previousTrickState.current = next
 
@@ -170,7 +175,13 @@ export function TableLayout({
     }, TRICK_LINGER_DURATION)
 
     return () => window.clearTimeout(timeout)
-  }, [snapshot.completedTricks.length, snapshot.currentTrick?.cards.length, snapshot.currentTrick?.leader])
+  }, [
+    snapshot.completedTricks.length,
+    snapshot.currentTrick?.cards.length,
+    snapshot.currentTrick?.leader,
+    snapshot.lastCompletedTrick?.leader,
+    snapshot.lastCompletedTrick?.cards.length,
+  ])
 
   const handActionable = useMemo(() => {
     if (viewerRole !== 'player') return false
@@ -183,9 +194,12 @@ export function TableLayout({
   const activeSeatName = activeSeat ? nameForSeat(activeSeat) : null
   const canAcceptKitty =
     viewerRole === 'player' && snapshot.phase === 'KittyDecision' && snapshot.kittyOfferee === viewerSeat
-  const kittyPassDisabled = snapshot.forcedAccept && snapshot.kittyOfferee === snapshot.acceptor
+  const kittyActionsDisabled = trickCooldown
+  const kittyPassDisabled =
+    kittyActionsDisabled || (snapshot.forcedAccept && snapshot.kittyOfferee === snapshot.acceptor)
   const canDeclareTrump =
     viewerRole === 'player' && snapshot.phase === 'TrumpDeclaration' && snapshot.dealer === viewerSeat
+  const trumpActionsDisabled = trickCooldown
   const canDiscard =
     viewerRole === 'player' && snapshot.phase === 'Discard' && snapshot.acceptor === viewerSeat
   const showActionRow = canAcceptKitty || canDeclareTrump || canDiscard
@@ -289,9 +303,7 @@ export function TableLayout({
                       trump={snapshot.trump}
                       seatingOrder={orderedSeats}
                       completedTrickCount={snapshot.completedTricks.length}
-                      lastCompletedTrick={
-                        snapshot.completedTricks[snapshot.completedTricks.length - 1]
-                      }
+                      lastCompletedTrick={lingeringTrick}
                     />
                   )}
                 </div>
@@ -357,7 +369,7 @@ export function TableLayout({
           <div className="action-row" role="group" aria-label="Table actions">
             {canAcceptKitty ? (
               <>
-                <button type="button" onClick={() => onKitty(true)}>
+                <button type="button" onClick={() => onKitty(true)} disabled={kittyActionsDisabled}>
                   Accept kitty
                 </button>
                 <button type="button" onClick={() => onKitty(false)} disabled={kittyPassDisabled}>
@@ -369,7 +381,12 @@ export function TableLayout({
             {canDeclareTrump ? (
               <div className="trump-actions" role="group" aria-label="Declare trump">
                 {(Object.keys(SUIT_LABEL) as Suit[]).map((suit) => (
-                  <button key={suit} type="button" onClick={() => onDeclareTrump(suit)}>
+                  <button
+                    key={suit}
+                    type="button"
+                    onClick={() => onDeclareTrump(suit)}
+                    disabled={trumpActionsDisabled}
+                  >
                     Declare {SUIT_LABEL[suit]}
                   </button>
                 ))}

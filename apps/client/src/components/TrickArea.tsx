@@ -90,11 +90,16 @@ export function TrickArea({
     latestTrickSnapshotRef.current = cloneTrick(trick);
     const previousCompletedCount = previousCompletedCountRef.current;
     const nextCompletedCount = completedTrickCount;
-    const completedTrick = nextCompletedCount > previousCompletedCount;
-
-    if (completedTrick && lastCompletedTrick) {
+    const newlyCompleted = nextCompletedCount > previousCompletedCount;
+    const fallbackActivated =
+      Boolean(lastCompletedTrick) &&
+      nextCompletedCount === 0 &&
+      previousCompletedCount > nextCompletedCount;
+    if ((newlyCompleted || fallbackActivated) && lastCompletedTrick) {
       previousTrickRef.current = cloneTrick(lastCompletedTrick);
     }
+
+    const completedTrick = newlyCompleted || fallbackActivated;
 
     const previous = previousTrickRef.current;
     const previousCards = previous?.cards ?? [];

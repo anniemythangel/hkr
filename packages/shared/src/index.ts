@@ -113,6 +113,7 @@ export interface MatchSnapshot {
   otherHandCounts: Record<PlayerId, number>;
   currentTrick?: Trick;
   completedTricks: Trick[];
+  lastCompletedTrick?: Trick;
   legalCards: Card[];
   lastHandSummary?: HandScoreSummary;
   gameResults: GameResultSummary[];
