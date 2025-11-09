@@ -144,6 +144,18 @@ function buttonByLabel(pattern: RegExp): HTMLButtonElement {
   return match;
 }
 
+function buttonByText(text: string): HTMLButtonElement {
+  if (!container) {
+    throw new Error('No container rendered');
+  }
+  const buttons = Array.from(container.querySelectorAll('button')) as HTMLButtonElement[];
+  const match = buttons.find((btn) => btn.textContent?.trim() === text);
+  if (!match) {
+    throw new Error(`No button found with text "${text}"`);
+  }
+  return match;
+}
+
 function trickCardCount(): number {
   if (!container) {
     return 0;
@@ -229,6 +241,95 @@ describe('TableLayout trick linger behaviour', () => {
     act(() => {
       vi.advanceTimersByTime(600);
     });
+    expect(trickCardCount()).toBe(0);
+  });
+
+  it('prevents kitty decisions until the linger completes for the final trick', () => {
+    vi.useFakeTimers();
+
+    const trickHistory: Trick[] = [
+      buildTrick('A', 'A', [
+        ['A', card('9', 'clubs')],
+        ['B', card('10', 'clubs')],
+        ['C', card('J', 'clubs')],
+        ['D', card('Q', 'clubs')],
+      ]),
+      buildTrick('B', 'B', [
+        ['B', card('9', 'diamonds')],
+        ['C', card('10', 'diamonds')],
+        ['D', card('J', 'diamonds')],
+        ['A', card('Q', 'diamonds')],
+      ]),
+      buildTrick('C', 'C', [
+        ['C', card('9', 'hearts')],
+        ['D', card('10', 'hearts')],
+        ['A', card('J', 'hearts')],
+        ['B', card('Q', 'hearts')],
+      ]),
+      buildTrick('D', 'D', [
+        ['D', card('9', 'spades')],
+        ['A', card('10', 'spades')],
+        ['B', card('J', 'spades')],
+        ['C', card('Q', 'spades')],
+      ]),
+    ];
+
+    const finalTrick = buildTrick('A', 'A', [
+      ['A', card('A', 'hearts')],
+      ['B', card('K', 'hearts')],
+      ['C', card('Q', 'hearts')],
+      ['D', card('J', 'hearts')],
+    ]);
+
+    const handScoreSnapshot = createSnapshot({
+      phase: 'HandScore',
+      completedTricks: [...trickHistory, finalTrick],
+      lastCompletedTrick: finalTrick,
+      currentTrick: undefined,
+    });
+
+    renderTable(handScoreSnapshot);
+
+    const kittyDecisionSnapshot = createSnapshot({
+      phase: 'KittyDecision',
+      completedTricks: [],
+      lastCompletedTrick: finalTrick,
+      currentTrick: undefined,
+      kittyOfferee: 'A',
+      kittySize: 3,
+      acceptor: undefined,
+      forcedAccept: false,
+    });
+
+    rerenderTable(kittyDecisionSnapshot);
+
+    const acceptKittyButton = buttonByText('Accept kitty');
+    const passKittyButton = buttonByText('Pass');
+
+    expect(acceptKittyButton.disabled).toBe(true);
+    expect(passKittyButton.disabled).toBe(true);
+    expect(trickCardCount()).toBe(4);
+
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+
+    expect(acceptKittyButton.disabled).toBe(true);
+    expect(passKittyButton.disabled).toBe(true);
+    expect(trickCardCount()).toBe(4);
+
+    act(() => {
+      vi.advanceTimersByTime(2);
+    });
+
+    expect(acceptKittyButton.disabled).toBe(false);
+    expect(passKittyButton.disabled).toBe(false);
+    expect(trickCardCount()).toBe(4);
+
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+
     expect(trickCardCount()).toBe(0);
   });
 });

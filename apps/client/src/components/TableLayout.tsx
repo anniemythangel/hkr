@@ -194,9 +194,12 @@ export function TableLayout({
   const activeSeatName = activeSeat ? nameForSeat(activeSeat) : null
   const canAcceptKitty =
     viewerRole === 'player' && snapshot.phase === 'KittyDecision' && snapshot.kittyOfferee === viewerSeat
-  const kittyPassDisabled = snapshot.forcedAccept && snapshot.kittyOfferee === snapshot.acceptor
+  const kittyActionsDisabled = trickCooldown
+  const kittyPassDisabled =
+    kittyActionsDisabled || (snapshot.forcedAccept && snapshot.kittyOfferee === snapshot.acceptor)
   const canDeclareTrump =
     viewerRole === 'player' && snapshot.phase === 'TrumpDeclaration' && snapshot.dealer === viewerSeat
+  const trumpActionsDisabled = trickCooldown
   const canDiscard =
     viewerRole === 'player' && snapshot.phase === 'Discard' && snapshot.acceptor === viewerSeat
   const showActionRow = canAcceptKitty || canDeclareTrump || canDiscard
@@ -366,7 +369,7 @@ export function TableLayout({
           <div className="action-row" role="group" aria-label="Table actions">
             {canAcceptKitty ? (
               <>
-                <button type="button" onClick={() => onKitty(true)}>
+                <button type="button" onClick={() => onKitty(true)} disabled={kittyActionsDisabled}>
                   Accept kitty
                 </button>
                 <button type="button" onClick={() => onKitty(false)} disabled={kittyPassDisabled}>
@@ -378,7 +381,12 @@ export function TableLayout({
             {canDeclareTrump ? (
               <div className="trump-actions" role="group" aria-label="Declare trump">
                 {(Object.keys(SUIT_LABEL) as Suit[]).map((suit) => (
-                  <button key={suit} type="button" onClick={() => onDeclareTrump(suit)}>
+                  <button
+                    key={suit}
+                    type="button"
+                    onClick={() => onDeclareTrump(suit)}
+                    disabled={trumpActionsDisabled}
+                  >
                     Declare {SUIT_LABEL[suit]}
                   </button>
                 ))}
