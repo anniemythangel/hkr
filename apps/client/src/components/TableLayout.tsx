@@ -132,6 +132,10 @@ export function TableLayout({
   const showAceDraw = Boolean(activeAceDraw && !completedAceDraws[activeAceDraw.gameIndex])
   const dealerRevealed = !showAceDraw
   const showKittyInfo = snapshot.kittySize > 0 || snapshot.phase === 'KittyDecision'
+  const lingeringTrick =
+    snapshot.completedTricks.length > 0
+      ? snapshot.completedTricks[snapshot.completedTricks.length - 1]
+      : snapshot.lastCompletedTrick
 
   const markAceDrawComplete = useCallback((gameIndex: number) => {
     setCompletedAceDraws((previous) => {
@@ -158,7 +162,8 @@ export function TableLayout({
 
     const trickFinished =
       next.completedCount > previous.completedCount ||
-      (previous.cardCount === 4 && (next.cardCount === 0 || next.leader !== previous.leader))
+      (previous.cardCount === 4 && (next.cardCount === 0 || next.leader !== previous.leader)) ||
+      (next.completedCount === 0 && previous.completedCount > 0 && snapshot.lastCompletedTrick)
 
     previousTrickState.current = next
 
@@ -170,7 +175,13 @@ export function TableLayout({
     }, TRICK_LINGER_DURATION)
 
     return () => window.clearTimeout(timeout)
-  }, [snapshot.completedTricks.length, snapshot.currentTrick?.cards.length, snapshot.currentTrick?.leader])
+  }, [
+    snapshot.completedTricks.length,
+    snapshot.currentTrick?.cards.length,
+    snapshot.currentTrick?.leader,
+    snapshot.lastCompletedTrick?.leader,
+    snapshot.lastCompletedTrick?.cards.length,
+  ])
 
   const handActionable = useMemo(() => {
     if (viewerRole !== 'player') return false
@@ -289,9 +300,7 @@ export function TableLayout({
                       trump={snapshot.trump}
                       seatingOrder={orderedSeats}
                       completedTrickCount={snapshot.completedTricks.length}
-                      lastCompletedTrick={
-                        snapshot.completedTricks[snapshot.completedTricks.length - 1]
-                      }
+                      lastCompletedTrick={lingeringTrick}
                     />
                   )}
                 </div>

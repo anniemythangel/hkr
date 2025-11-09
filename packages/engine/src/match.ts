@@ -121,6 +121,7 @@ function initialState(options: MatchOptions = {}): GameState {
       passes: [],
       pickedFromKitty: undefined,
     },
+    lastCompletedTrick: undefined,
     lastHandSummary: undefined,
     gameResults: [],
     playerGameWins: {
@@ -431,6 +432,7 @@ export function handlePlayCard(state: GameState, player: PlayerId, card: Card): 
         completedTricks,
         trickIndex,
       },
+      lastCompletedTrick: completedTrick,
     };
 
     if (completedTricks.length === 5) {
@@ -669,6 +671,12 @@ export function getSnapshot(
       cards: trick.cards.map((entry) => ({ ...entry })),
       winner: trick.winner,
     })),
+    lastCompletedTrick:
+      state.lastCompletedTrick && {
+        leader: state.lastCompletedTrick.leader,
+        cards: state.lastCompletedTrick.cards.map((entry) => ({ ...entry })),
+        winner: state.lastCompletedTrick.winner,
+      },
     legalCards: legalCardsForPlayer(state, viewer),
     lastHandSummary: state.lastHandSummary,
     gameResults: state.gameResults,
