@@ -129,8 +129,9 @@ export function TableLayout({
   }, [seatingOrder, snapshot.seating])
 
   const activeAceDraw = snapshot.aceDraw
-  const showAceDraw = Boolean(activeAceDraw && !completedAceDraws[activeAceDraw.gameIndex])
-  const dealerRevealed = !showAceDraw
+  const aceDrawPending = Boolean(activeAceDraw && !completedAceDraws[activeAceDraw.gameIndex])
+  const showAceDraw = aceDrawPending && !trickCooldown
+  const dealerRevealed = !aceDrawPending
   const showKittyInfo = snapshot.kittySize > 0 || snapshot.phase === 'KittyDecision'
 
   const markAceDrawComplete = useCallback((gameIndex: number) => {
