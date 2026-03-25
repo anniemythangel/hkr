@@ -14,6 +14,12 @@ interface TrickAreaProps {
 type PlayedCard = Trick['cards'][number];
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
+const SUIT_SYMBOL: Record<Suit, string> = {
+  clubs: '♣',
+  diamonds: '♦',
+  hearts: '♥',
+  spades: '♠',
+};
 
 export const TRICK_LINGER_DURATION = 3000;
 export const COLLECT_ANIMATION_DURATION = 600;
@@ -168,7 +174,7 @@ export function TrickArea({
         <h3 className="trick-area-title">Trick in play</h3>
         {trump ? (
           <p className="trick-area-trump" role="status" aria-live="polite">
-            Trump: {suitFull(trump)}
+            Trump: {suitFull(trump)} {SUIT_SYMBOL[trump]}
           </p>
         ) : null}
       </header>
