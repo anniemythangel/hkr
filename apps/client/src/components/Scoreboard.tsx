@@ -49,14 +49,15 @@ interface ScoreboardProps {
   };
 }
 
-function teamLabel(team: TeamId) {
-  return team === 'NorthSouth' ? 'North / South' : 'East / West';
-}
-
-function formatLastHand(summary: HandScoreSummary | undefined) {
+function formatLastHand(
+  summary: HandScoreSummary | undefined,
+  teamsById: Map<TeamId, ScoreboardTeam>,
+) {
   if (!summary) return null;
   const euchred = summary.euchred ? ' • Euchred' : '';
-  return `Last hand: ${teamLabel(summary.winningTeam)} +${summary.points}${euchred}`;
+  const winners = teamsById.get(summary.winningTeam);
+  const winnerLabel = winners ? formatMembers(winners.members) : summary.winningTeam;
+  return `Last hand: ${winnerLabel} +${summary.points}${euchred}`;
 }
 
 function formatMembers(members: NamedPlayer[]) {
@@ -78,7 +79,8 @@ export function Scoreboard({
 }: ScoreboardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const detailsId = useId();
-  const lastHandText = formatLastHand(lastHandSummary);
+  const teamsById = new Map(teams.map((team) => [team.id, team]));
+  const lastHandText = formatLastHand(lastHandSummary, teamsById);
   const tricksCompleted = trickIndex;
   const currentHandStatus = `Tricks completed: ${tricksCompleted} / ${HAND_TRICK_COUNT}`;
   const resultsByIndex = new Map(match.results.map((result) => [result.gameIndex, result]));
@@ -145,9 +147,10 @@ export function Scoreboard({
         <ul className="scoreboard-summary-list">
           {teams.map((team) => {
             const score = scores[team.id] ?? 0;
+            const teamDisplayLabel = formatMembers(team.members);
             return (
               <li key={team.id} className="scoreboard-summary-item">
-                <span className="scoreboard-summary-label">{team.label}</span>
+                <span className="scoreboard-summary-label">{teamDisplayLabel}</span>
                 <span className="scoreboard-summary-score">
                   {score}
                   <span aria-hidden="true" className="scoreboard-summary-target">
@@ -192,7 +195,10 @@ export function Scoreboard({
                   <span className="scoreboard-match-item-label">Game {game.gameIndex + 1}</span>
                   {game.result ? (
                     <span className="scoreboard-match-item-result">
-                      {teamLabel(game.result.winner)} won {formatScore(game.result.scores)}
+                      {formatMembers(
+                        game.teams.find((team) => team.id === game.result.winner)?.members ?? [],
+                      ) || game.result.winner}{' '}
+                      won {formatScore(game.result.scores)}
                     </span>
                   ) : (
                     <span className="scoreboard-match-item-status">{game.status}</span>
@@ -201,8 +207,7 @@ export function Scoreboard({
                 <div className="scoreboard-match-item-teams">
                   {game.teams.map((team) => (
                     <div key={team.id} className="scoreboard-match-team">
-                      <span className="scoreboard-match-team-label">{team.label}:</span>{' '}
-                      <span className="scoreboard-match-team-members">{formatMembers(team.members)}</span>
+                      <span className="scoreboard-match-team-label">{formatMembers(team.members)}</span>
                     </div>
                   ))}
                 </div>
@@ -228,10 +233,11 @@ export function Scoreboard({
         <ul className="scoreboard-list">
           {teams.map((team) => {
             const score = scores[team.id] ?? 0;
+            const teamDisplayLabel = formatMembers(team.members);
             return (
-              <li key={team.id} className="scoreboard-team" aria-label={`Team ${team.label}`}>
+              <li key={team.id} className="scoreboard-team" aria-label={`Team ${teamDisplayLabel}`}>
                 <div className="scoreboard-team-header">
-                  <span className="scoreboard-team-label">{team.label}</span>
+                  <span className="scoreboard-team-label">{teamDisplayLabel}</span>
                   <span className="scoreboard-team-score" aria-live="polite">
                     {score}
                     <span className="scoreboard-team-target" aria-hidden="true">

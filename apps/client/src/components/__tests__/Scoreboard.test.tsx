@@ -14,9 +14,9 @@ const playerNames: Record<PlayerId, string> = {
 const rotation = GAME_ROTATION.map((config, index) => ({
   gameIndex: index,
   seating: config.seating,
-  teams: TEAMS.map((teamId) => ({
+  teams: TEAMS.map((teamId, index) => ({
     id: teamId,
-    label: teamId === 'NorthSouth' ? 'North / South' : 'East / West',
+    label: `Team ${index + 1}`,
     members: config.teams[teamId].map((seat) => ({
       id: seat,
       name: playerNames[seat],
@@ -102,7 +102,7 @@ describe('Scoreboard', () => {
       playerGameWins: { A: 1, B: 1, C: 0, D: 0 },
     })
     expect(html).toContain('Match Game 2 of 3')
-    expect(html).toContain('North / South won 10-6')
+    expect(html).toContain('Aria (A) &amp; Bennett (B) won 10-6')
   })
 
   it('announces honors when the match ends', () => {

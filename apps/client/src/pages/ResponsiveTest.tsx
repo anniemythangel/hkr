@@ -192,9 +192,9 @@ export default function ResponsiveTestPage() {
   }, [snapshot.completedTricks, snapshot.teamAssignments])
 
   const scoreboardTeams = useMemo(() => {
-    return TEAMS.map((teamId) => ({
+    return TEAMS.map((teamId, index) => ({
       id: teamId,
-      label: teamId === 'NorthSouth' ? 'North / South' : 'East / West',
+      label: `Team ${index + 1}`,
       members: snapshot.teamAssignments[teamId].map((seat) => ({ id: seat, name: nameForSeat(seat) })),
       handTricks: trickCounts[teamId],
     }))
@@ -212,9 +212,9 @@ export default function ResponsiveTestPage() {
     return GAME_ROTATION.map((entry, index) => ({
       gameIndex: index,
       seating: entry.seating,
-      teams: TEAMS.map((teamId) => ({
+      teams: TEAMS.map((teamId, teamIndex) => ({
         id: teamId,
-        label: teamId === 'NorthSouth' ? 'North / South' : 'East / West',
+        label: `Team ${teamIndex + 1}`,
         members: entry.teams[teamId].map((seat) => ({ id: seat, name: nameForSeat(seat) })),
       })),
     }))
