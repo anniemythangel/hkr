@@ -11,7 +11,7 @@ import { Suit, Card, PlayerId, ParticipantRole, TEAMS, GAME_ROTATION, PLAYERS } 
 export default function TablePage() {
   const { roomId: routeRoom } = useParams()
   const {
-    status, snapshot, error, logs, chatMessages,
+    status, snapshot, logs, chatMessages,
     connect, emitAction, sendChat, setReady, setFollowSeat,
     roster, lobby, token, defaultServer
   } = useSocket(import.meta.env.VITE_WS_URL ?? 'http://localhost:3001')
@@ -194,7 +194,6 @@ export default function TablePage() {
       </header>
 
       <main>
-        {error ? <div className="error" role="alert">{error}</div> : null}
         {snapshot && viewerSeat ? (
           <>
             <TableLayout
