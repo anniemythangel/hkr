@@ -120,6 +120,7 @@ function initialState(options: MatchOptions = {}): GameState {
       trickIndex: 0,
       passes: [],
       pickedFromKitty: undefined,
+      acceptedKittyCard: undefined,
     },
     lastHandSummary: undefined,
     gameResults: [],
@@ -212,6 +213,7 @@ function startHand(state: GameState, options: MatchOptions = {}): GameState {
       trickIndex: 0,
       passes: [],
       pickedFromKitty: undefined,
+      acceptedKittyCard: undefined,
     },
     // If provider is used, do not mutate remainingDecks (keep []).
     remainingDecks: options.deckProvider ? [] : remaining,
@@ -286,6 +288,7 @@ export function handleKittyDecision(
         acceptor: player,
         kittyOfferee: undefined,
         pickedFromKitty: topClone,
+        acceptedKittyCard: topClone,
       },
     },
   };
@@ -501,6 +504,7 @@ function startNextGame(state: GameState, options: MatchOptions = {}): GameState 
       completedTricks: [],
       trickIndex: 0,
       passes: [],
+      acceptedKittyCard: undefined,
     },
     lastHandSummary: undefined,
     // If provider is used, do not mutate remainingDecks (keep []).
@@ -616,6 +620,7 @@ export function getSnapshot(
   // The top card of the kitty is only visible during the kitty decision phase.
   const kittyTopCard =
     state.phase === 'KittyDecision' && state.hand.kitty.length > 0 ? state.hand.kitty[0] : null;
+  const acceptedKittyCard = state.hand.acceptedKittyCard ?? null;
   const otherHandCounts: Record<PlayerId, number> = {
     A: state.hand.hands.A.length,
     B: state.hand.hands.B.length,
@@ -652,6 +657,7 @@ export function getSnapshot(
     dealer: state.dealer,
     trump: state.hand.trump,
     kittyTopCard,
+    acceptedKittyCard,
     kittySize: state.hand.kitty.length,
     kittyOfferee: state.hand.kittyOfferee,
     acceptor: state.hand.acceptor,

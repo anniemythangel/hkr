@@ -1,40 +1,92 @@
-import { describe, it, expect } from 'vitest';
-import { startHandForDealer, effectiveSuit, resolveTrick } from '../src'; // adjust imports
+import { describe, expect, it } from 'vitest';
+import {
+  createMatch,
+  getSnapshot,
+  handleDeclareTrump,
+  handleDiscard,
+  handleKittyDecision,
+  handlePlayCard,
+} from '@hooker/engine';
+import type { Card, PlayerId } from '@hooker/shared';
+import type { GameState, Result } from '@hooker/engine';
 
-describe('Kitty offering order', () => {
-  it('offers to the seat left of dealer', () => {
-    const h = startHandForDealer(0 /* dealer=A */, 123 /* seed */);
-    expect(h.initialOfferee).toBe(1); // B
-  });
+const SUIT_MAP = {
+  C: 'clubs',
+  D: 'diamonds',
+  H: 'hearts',
+  S: 'spades',
+} as const;
 
-  it('boomerangs to initial offeree after full pass', () => {
-    const h = startHandForDealer(0, 123);
-    // simulate A(dealer)-> B pass, C pass, D pass, A pass
-    // expect next state to force-accept on B (seat 1)
-    // (Call your transition that advances offers and assert forced accept target)
-  });
-});
+function card(rank: Card['rank'], suit: keyof typeof SUIT_MAP): Card {
+  return { rank, suit: SUIT_MAP[suit] };
+}
 
-describe('Effective suit & trick ranking', () => {
-  it('Nassih follows as trump; same-color J follows printed suit', () => {
-    // trump = Spades
-    const s = 'S';
-    expect(effectiveSuit({suit:'S',rank:'J'}, s)).toBe('S'); // Nassih
-    expect(effectiveSuit({suit:'C',rank:'J'}, s)).toBe('C'); // Nassih Ahh uses printed suit
-  });
+function buildDeck(specs: Array<[Card['rank'], keyof typeof SUIT_MAP]>) {
+  return specs.map(([rank, suit]) => card(rank, suit));
+}
 
-  it('Trick hierarchy Nassih > NassihAhh > other trumps > led suit', () => {
-    const trump = 'S', led = 'H';
-    const winner = resolveTrick(
-      [
-        {seat:0, card:{suit:'H',rank:'A'}}, // led Ace of hearts
-        {seat:1, card:{suit:'S',rank:'J'}}, // Nassih (J of trump)
-        {seat:2, card:{suit:'C',rank:'J'}}, // Nassih Ahh (same-color J)
-        {seat:3, card:{suit:'S',rank:'A'}}, // other trump
-      ],
-      led,
-      trump
-    );
-    expect(winner.seat).toBe(1);
+function unwrap(result: Result<GameState>): GameState {
+  if (!result.ok) throw new Error(result.error);
+  return result.state;
+}
+
+const aceDeck = buildDeck([
+  ['A', 'S'],
+  ['9', 'C'],
+  ['9', 'D'],
+  ['9', 'H'],
+]);
+
+const handDeck = buildDeck([
+  ['9', 'C'],
+  ['9', 'D'],
+  ['9', 'H'],
+  ['9', 'S'],
+  ['10', 'C'],
+  ['10', 'D'],
+  ['10', 'H'],
+  ['10', 'S'],
+  ['Q', 'C'],
+  ['Q', 'D'],
+  ['Q', 'H'],
+  ['Q', 'S'],
+  ['K', 'C'],
+  ['K', 'D'],
+  ['K', 'H'],
+  ['K', 'S'],
+  ['A', 'C'],
+  ['A', 'D'],
+  ['A', 'H'],
+  ['A', 'S'],
+  ['J', 'C'],
+  ['J', 'D'],
+  ['J', 'H'],
+  ['J', 'S'],
+]);
+
+describe('accepted kitty card snapshots', () => {
+  it('exposes accepted kitty card after acceptance and through trick play', () => {
+    let state = createMatch({ decks: [aceDeck, handDeck] });
+    expect(state.phase).toBe('KittyDecision');
+
+    state = unwrap(handleKittyDecision(state, 'C', true));
+    expect(state.phase).toBe('Discard');
+
+    for (const viewer of ['A', 'B', 'C', 'D'] as PlayerId[]) {
+      const snapshot = getSnapshot(state, viewer);
+      expect(snapshot.acceptedKittyCard).toEqual(card('J', 'C'));
+      expect(snapshot.kittyTopCard).toBeNull();
+    }
+
+    state = unwrap(handleDiscard(state, 'C', card('9', 'C')));
+    expect(state.phase).toBe('TrumpDeclaration');
+    expect(getSnapshot(state, 'A').acceptedKittyCard).toEqual(card('J', 'C'));
+
+    state = unwrap(handleDeclareTrump(state, 'A', 'spades'));
+    expect(state.phase).toBe('TrickPlay');
+    expect(getSnapshot(state, 'D').acceptedKittyCard).toEqual(card('J', 'C'));
+
+    state = unwrap(handlePlayCard(state, 'A', card('9', 'S')));
+    expect(getSnapshot(state, 'B').acceptedKittyCard).toEqual(card('J', 'C'));
   });
 });
