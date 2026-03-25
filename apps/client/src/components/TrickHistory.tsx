@@ -9,10 +9,10 @@ interface TrickHistoryProps {
 }
 
 const SUIT_SYMBOL: Record<Trick['cards'][number]['card']['suit'], string> = {
-  clubs: 'C',
-  diamonds: 'D',
-  hearts: 'H',
-  spades: 'S',
+  clubs: '♣',
+  diamonds: '♦',
+  hearts: '♥',
+  spades: '♠',
 }
 
 const RANK_SYMBOL: Record<Trick['cards'][number]['card']['rank'], string> = {
