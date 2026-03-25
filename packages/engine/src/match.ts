@@ -628,7 +628,13 @@ export function getSnapshot(
     D: state.hand.hands.D.length,
   };
   let aceDraw: MatchSnapshot['aceDraw'];
-  if (state.aceDeck && state.aceDeck.length > 0) {
+  const isInitialKittyDecisionWindow =
+    state.phase === 'KittyDecision' &&
+    state.hand.trickIndex === 0 &&
+    state.hand.passes.length === 0 &&
+    !state.hand.forcedAccept &&
+    !state.hand.acceptor;
+  if (isInitialKittyDecisionWindow && state.aceDeck && state.aceDeck.length > 0) {
     const draws: { player: PlayerId; card: Card }[] = [];
     let dealer: PlayerId | null = null;
     for (let index = 0; index < state.aceDeck.length; index += 1) {
