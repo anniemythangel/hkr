@@ -105,15 +105,14 @@ export default function TablePage() {
 
   const scoreboardTeams = useMemo(() => {
     if (!snapshot) return [];
-    return TEAMS.map((teamId) => {
-      const label = teamId === 'NorthSouth' ? 'North / South' : 'East / West';
+    return TEAMS.map((teamId, index) => {
       const members = snapshot.teamAssignments[teamId].map((seat) => ({
         id: seat,
         name: nameForSeat(seat),
       }));
       return {
         id: teamId,
-        label,
+        label: `Team ${index + 1}`,
         members,
         handTricks: trickCounts[teamId],
       };
@@ -136,9 +135,9 @@ export default function TablePage() {
       return {
         gameIndex: index,
         seating,
-        teams: TEAMS.map((teamId) => ({
+        teams: TEAMS.map((teamId, teamIndex) => ({
           id: teamId,
-          label: teamId === 'NorthSouth' ? 'North / South' : 'East / West',
+          label: `Team ${teamIndex + 1}`,
           members: teams[teamId].map((seat) => ({
             id: seat,
             name: nameForSeat(seat),
