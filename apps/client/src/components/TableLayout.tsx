@@ -375,10 +375,9 @@ export function TableLayout({
           {showKittyInfo ? (
             <div className="kitty-top-pocket" aria-label={kittySummaryLabel}>
               <KittyTop card={kittyDisplay.card} label={kittyDisplay.label} />
-              {kittyDisplay.label === 'Accepted kitty' ? (
-                <span className="kitty-top-caption subtle">Accepted kitty</span>
+              {phaseForTableUi === 'KittyDecision' ? (
+                <span className="kitty-top-caption subtle">{kittyCountCaption}</span>
               ) : null}
-              <span className="kitty-top-caption subtle">{kittyCountCaption}</span>
             </div>
           ) : null}
         </div>
