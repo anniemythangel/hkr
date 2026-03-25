@@ -90,12 +90,26 @@ export function getNassihAhh(trump: Suit): Card {
 }
 
 export function createSeededRng(seed: number): () => number {
-  let value = Math.trunc(seed) % 2147483647;
-  if (value <= 0) {
-    value += 2147483646;
-  }
+  const MASK_64 = (1n << 64n) - 1n;
+  const MULTIPLIER = 6364136223846793005n;
+  const increment = ((BigInt(Math.trunc(seed)) << 1n) | 1n) & MASK_64;
+  let state = (BigInt(Math.trunc(seed)) + 0x9e3779b97f4a7c15n) & MASK_64;
+
+  const nextUint32 = () => {
+    const previousState = state;
+    state = (previousState * MULTIPLIER + increment) & MASK_64;
+
+    const xorshifted = Number((((previousState >> 18n) ^ previousState) >> 27n) & 0xffffffffn);
+    const rotation = Number((previousState >> 59n) & 31n);
+    const rotated =
+      ((xorshifted >>> rotation) | (xorshifted << ((32 - rotation) & 31))) >>> 0;
+    return rotated;
+  };
+
+  // Advance once so output is decorrelated from initialized state.
+  nextUint32();
+
   return () => {
-    value = (value * 16807) % 2147483647;
-    return (value - 1) / 2147483646;
+    return nextUint32() / 4294967296;
   };
 }
