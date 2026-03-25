@@ -604,6 +604,11 @@ function act(
   }
 
   const log = options.onSuccess?.(previous, result.state);
+
+  if (previous.phase === 'TrickPlay' && result.state.phase === 'HandScore') {
+    broadcastSnapshot(roomId, result.state);
+  }
+
   const advanced = autoAdvance(result.state, roomId);
   roomState.set(roomId, advanced);
   broadcastSnapshot(roomId, advanced);
