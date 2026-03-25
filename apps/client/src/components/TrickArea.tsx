@@ -15,8 +15,8 @@ type PlayedCard = Trick['cards'][number];
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
 
-const TRICK_LINGER_DURATION = 3000;
-const COLLECT_ANIMATION_DURATION = 600;
+export const TRICK_LINGER_DURATION = 3000;
+export const COLLECT_ANIMATION_DURATION = 600;
 
 type TrickSnapshot = {
   leader: PlayerId;
