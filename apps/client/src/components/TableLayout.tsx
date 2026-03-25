@@ -77,6 +77,7 @@ export function TableLayout({
   const [completedAceDraws, setCompletedAceDraws] = useState<Record<number, boolean>>({})
   const [trickCooldown, setTrickCooldown] = useState(false)
   const [finalTrickCooldown, setFinalTrickCooldown] = useState(false)
+  const finalTrickCooldownTimeoutRef = useRef<number | null>(null)
   const previousCompletedCountRef = useRef(snapshot.completedTricks.length)
   const previousTrickState = useRef<{
     completedCount: number
@@ -181,13 +182,25 @@ export function TableLayout({
     previousCompletedCountRef.current = nextCompleted
     if (!finalTrickJustCompleted) return undefined
 
+    if (finalTrickCooldownTimeoutRef.current !== null) {
+      window.clearTimeout(finalTrickCooldownTimeoutRef.current)
+    }
     setFinalTrickCooldown(true)
-    const timeout = window.setTimeout(() => {
+    finalTrickCooldownTimeoutRef.current = window.setTimeout(() => {
       setFinalTrickCooldown(false)
+      finalTrickCooldownTimeoutRef.current = null
     }, FINAL_TRICK_COOLDOWN_DURATION)
-
-    return () => window.clearTimeout(timeout)
   }, [snapshot.completedTricks.length])
+
+  useEffect(
+    () => () => {
+      if (finalTrickCooldownTimeoutRef.current !== null) {
+        window.clearTimeout(finalTrickCooldownTimeoutRef.current)
+        finalTrickCooldownTimeoutRef.current = null
+      }
+    },
+    [],
+  )
 
   const interactionLocked = trickCooldown || finalTrickCooldown
   const phaseForTableUi =
