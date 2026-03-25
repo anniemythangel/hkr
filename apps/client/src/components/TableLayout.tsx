@@ -77,7 +77,6 @@ export function TableLayout({
   const [completedAceDraws, setCompletedAceDraws] = useState<Record<number, boolean>>({})
   const [trickCooldown, setTrickCooldown] = useState(false)
   const [finalTrickCooldown, setFinalTrickCooldown] = useState(false)
-  const trickCooldownTimeoutRef = useRef<number | null>(null)
   const finalTrickCooldownTimeoutRef = useRef<number | null>(null)
   const previousCompletedCountRef = useRef(snapshot.completedTricks.length)
   const previousTrickState = useRef<{
@@ -197,10 +196,6 @@ export function TableLayout({
 
   useEffect(
     () => () => {
-      if (trickCooldownTimeoutRef.current !== null) {
-        window.clearTimeout(trickCooldownTimeoutRef.current)
-        trickCooldownTimeoutRef.current = null
-      }
       if (finalTrickCooldownTimeoutRef.current !== null) {
         window.clearTimeout(finalTrickCooldownTimeoutRef.current)
         finalTrickCooldownTimeoutRef.current = null
@@ -395,10 +390,9 @@ export function TableLayout({
           {showKittyInfo ? (
             <div className="kitty-top-pocket" aria-label={kittySummaryLabel}>
               <KittyTop card={kittyDisplay.card} label={kittyDisplay.label} />
-              {kittyDisplay.label === 'Accepted kitty' ? (
-                <span className="kitty-top-caption subtle">Accepted kitty</span>
+              {phaseForTableUi === 'KittyDecision' ? (
+                <span className="kitty-top-caption subtle">{kittyCountCaption}</span>
               ) : null}
-              <span className="kitty-top-caption subtle">{kittyCountCaption}</span>
             </div>
           ) : null}
         </div>
