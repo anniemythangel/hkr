@@ -27,6 +27,7 @@ export interface HandState {
   trickIndex: number;
   passes: PlayerId[];
   pickedFromKitty?: Card;
+  acceptedKittyCard?: Card;
 }
 
 export interface GameState {

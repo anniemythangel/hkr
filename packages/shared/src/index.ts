@@ -103,6 +103,7 @@ export interface MatchSnapshot {
   dealer: PlayerId;
   trump?: Suit;
   kittyTopCard?: Card | null;
+  acceptedKittyCard?: Card | null;
   kittySize: number;
   kittyOfferee?: PlayerId;
   acceptor?: PlayerId;

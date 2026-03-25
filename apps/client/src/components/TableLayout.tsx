@@ -193,6 +193,12 @@ export function TableLayout({
     snapshot.kittySize === 0
       ? 'Kitty empty'
       : `${snapshot.kittySize} card${snapshot.kittySize === 1 ? '' : 's'} in kitty`
+  const kittyDisplay =
+    snapshot.phase === 'KittyDecision'
+      ? { card: snapshot.kittyTopCard ?? null, label: 'Kitty top' as const }
+      : snapshot.acceptedKittyCard
+        ? { card: snapshot.acceptedKittyCard, label: 'Accepted kitty' as const }
+        : { card: null, label: 'Accepted kitty' as const }
   const kittySummaryLabel =
     snapshot.kittySize === 0
       ? 'Kitty summary: kitty empty'
@@ -347,7 +353,10 @@ export function TableLayout({
           </div>
           {showKittyInfo ? (
             <div className="kitty-top-pocket" aria-label={kittySummaryLabel}>
-              <KittyTop card={snapshot.kittyTopCard ?? null} />
+              <KittyTop card={kittyDisplay.card} label={kittyDisplay.label} />
+              {kittyDisplay.label === 'Accepted kitty' ? (
+                <span className="kitty-top-caption subtle">Accepted kitty</span>
+              ) : null}
               <span className="kitty-top-caption subtle">{kittyCountCaption}</span>
             </div>
           ) : null}
