@@ -15,8 +15,8 @@ type PlayedCard = Trick['cards'][number];
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
 
-const TRICK_LINGER_DURATION = 3000;
-const COLLECT_ANIMATION_DURATION = 600;
+export const TRICK_LINGER_DURATION = 3000;
+export const COLLECT_ANIMATION_DURATION = 600;
 
 type TrickSnapshot = {
   leader: PlayerId;
@@ -55,6 +55,7 @@ export function TrickArea({
   const previousTrickRef = useRef<TrickSnapshot | undefined>(
     cloneTrick(lastCompletedTrick ?? trick)
   );
+  const previousLiveTrickRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
   const latestTrickSnapshotRef = useRef<TrickSnapshot | undefined>(cloneTrick(trick));
   const pendingNextSnapshotRef = useRef<TrickSnapshot | undefined>();
   const lingerTimeoutRef = useRef<number | null>(null);
@@ -90,10 +91,14 @@ export function TrickArea({
     latestTrickSnapshotRef.current = cloneTrick(trick);
     const previousCompletedCount = previousCompletedCountRef.current;
     const nextCompletedCount = completedTrickCount;
-    const completedTrick = nextCompletedCount > previousCompletedCount;
+    const previousLiveTrick = previousLiveTrickRef.current;
+    const trickRolledOver =
+      Boolean(previousLiveTrick && previousLiveTrick.cards.length === 4) &&
+      (!trick || trick.cards.length === 0 || trick.leader !== previousLiveTrick?.leader);
+    const completedTrick = nextCompletedCount > previousCompletedCount || trickRolledOver;
 
-    if (completedTrick && lastCompletedTrick) {
-      previousTrickRef.current = cloneTrick(lastCompletedTrick);
+    if (completedTrick) {
+      previousTrickRef.current = cloneTrick(lastCompletedTrick) ?? previousLiveTrick;
     }
 
     const previous = previousTrickRef.current;
@@ -106,6 +111,7 @@ export function TrickArea({
       pendingNextSnapshotRef.current = nextSnapshot;
       if (!completedTrick) {
         previousCompletedCountRef.current = nextCompletedCount;
+        previousLiveTrickRef.current = latestTrickSnapshotRef.current;
         return;
       }
     }
@@ -140,6 +146,7 @@ export function TrickArea({
       }
 
       previousCompletedCountRef.current = nextCompletedCount;
+      previousLiveTrickRef.current = latestTrickSnapshotRef.current;
       return;
     }
 
@@ -152,6 +159,7 @@ export function TrickArea({
     previousTrickRef.current = nextSnapshot;
     pendingNextSnapshotRef.current = undefined;
     previousCompletedCountRef.current = nextCompletedCount;
+    previousLiveTrickRef.current = nextSnapshot;
   }, [trick, completedTrickCount, lastCompletedTrick]);
 
   const slots = useMemo(() => {

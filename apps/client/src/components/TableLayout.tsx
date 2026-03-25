@@ -3,7 +3,7 @@ import type { Card, MatchSnapshot, ParticipantRole, PlayerId, Suit, TeamId } fro
 import { GAME_ROTATION, PLAYERS, TEAMS } from '@hooker/shared'
 import Hand from './Hand'
 import Seat from './Seat'
-import TrickArea from './TrickArea'
+import TrickArea, { COLLECT_ANIMATION_DURATION, TRICK_LINGER_DURATION } from './TrickArea'
 import TrumpBadge from './TrumpBadge'
 import KittyTop from './KittyTop'
 import AceDrawAnimation from './AceDrawAnimation'
@@ -28,7 +28,7 @@ interface TableLayoutProps {
 }
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const
-const TRICK_LINGER_DURATION = 3000
+const FINAL_TRICK_COOLDOWN_DURATION = TRICK_LINGER_DURATION + COLLECT_ANIMATION_DURATION
 const SUIT_LABEL: Record<Suit, string> = {
   clubs: 'Clubs ♣',
   diamonds: 'Diamonds ♦',
@@ -76,6 +76,8 @@ export function TableLayout({
 }: TableLayoutProps) {
   const [completedAceDraws, setCompletedAceDraws] = useState<Record<number, boolean>>({})
   const [trickCooldown, setTrickCooldown] = useState(false)
+  const [finalTrickCooldown, setFinalTrickCooldown] = useState(false)
+  const finalTrickCooldownTimeoutRef = useRef<number | null>(null)
   const previousTrickState = useRef<{
     completedCount: number
     cardCount: number
@@ -165,29 +167,55 @@ export function TableLayout({
     if (!trickFinished) return undefined
 
     setTrickCooldown(true)
+    const finalTrickFinished = previous.completedCount === 4
+    if (finalTrickFinished) {
+      setFinalTrickCooldown(true)
+      if (finalTrickCooldownTimeoutRef.current !== null) {
+        window.clearTimeout(finalTrickCooldownTimeoutRef.current)
+      }
+      finalTrickCooldownTimeoutRef.current = window.setTimeout(() => {
+        setFinalTrickCooldown(false)
+        finalTrickCooldownTimeoutRef.current = null
+      }, FINAL_TRICK_COOLDOWN_DURATION)
+    }
+
     const timeout = window.setTimeout(() => {
       setTrickCooldown(false)
     }, TRICK_LINGER_DURATION)
 
-    return () => window.clearTimeout(timeout)
+    return () => {
+      window.clearTimeout(timeout)
+    }
   }, [snapshot.completedTricks.length, snapshot.currentTrick?.cards.length, snapshot.currentTrick?.leader])
+
+  useEffect(() => {
+    return () => {
+      if (finalTrickCooldownTimeoutRef.current !== null) {
+        window.clearTimeout(finalTrickCooldownTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const interactionLocked = trickCooldown || finalTrickCooldown
+  const phaseForTableUi =
+    finalTrickCooldown && snapshot.phase === 'HandScore' ? ('TrickPlay' as const) : snapshot.phase
 
   const handActionable = useMemo(() => {
     if (viewerRole !== 'player') return false
-    if (trickCooldown) return false
+    if (interactionLocked) return false
     if (activeSeat !== viewerSeat) return false
-    return snapshot.phase === 'Discard' || snapshot.phase === 'TrickPlay'
-  }, [activeSeat, snapshot.phase, trickCooldown, viewerRole, viewerSeat])
+    return phaseForTableUi === 'Discard' || phaseForTableUi === 'TrickPlay'
+  }, [activeSeat, interactionLocked, phaseForTableUi, viewerRole, viewerSeat])
 
   const dealerName = nameForSeat(snapshot.dealer)
   const activeSeatName = activeSeat ? nameForSeat(activeSeat) : null
   const canAcceptKitty =
-    viewerRole === 'player' && snapshot.phase === 'KittyDecision' && snapshot.kittyOfferee === viewerSeat
+    viewerRole === 'player' && phaseForTableUi === 'KittyDecision' && snapshot.kittyOfferee === viewerSeat
   const kittyPassDisabled = snapshot.forcedAccept && snapshot.kittyOfferee === snapshot.acceptor
   const canDeclareTrump =
-    viewerRole === 'player' && snapshot.phase === 'TrumpDeclaration' && snapshot.dealer === viewerSeat
+    viewerRole === 'player' && phaseForTableUi === 'TrumpDeclaration' && snapshot.dealer === viewerSeat
   const canDiscard =
-    viewerRole === 'player' && snapshot.phase === 'Discard' && snapshot.acceptor === viewerSeat
+    viewerRole === 'player' && phaseForTableUi === 'Discard' && snapshot.acceptor === viewerSeat
   const showActionRow = canAcceptKitty || canDeclareTrump || canDiscard
   const kittyCountCaption =
     snapshot.kittySize === 0
@@ -197,6 +225,8 @@ export function TableLayout({
     snapshot.kittySize === 0
       ? 'Kitty summary: kitty empty'
       : `Kitty summary: ${snapshot.kittySize} card${snapshot.kittySize === 1 ? '' : 's'} in kitty`
+
+  const lastCompletedTrick = snapshot.completedTricks[snapshot.completedTricks.length - 1]
 
   return (
     <div className="table-layout" aria-label="Card table layout">
@@ -289,9 +319,7 @@ export function TableLayout({
                       trump={snapshot.trump}
                       seatingOrder={orderedSeats}
                       completedTrickCount={snapshot.completedTricks.length}
-                      lastCompletedTrick={
-                        snapshot.completedTricks[snapshot.completedTricks.length - 1]
-                      }
+                      lastCompletedTrick={lastCompletedTrick}
                     />
                   )}
                 </div>
@@ -339,7 +367,7 @@ export function TableLayout({
               cards={snapshot.selfHand}
               legalKeys={legalKeys}
               actionable={handActionable}
-              phase={snapshot.phase}
+              phase={phaseForTableUi}
               onDiscard={onDiscard}
               onPlay={onPlay}
               ariaLabel={viewerRole === 'player' ? 'Your cards' : 'Viewing cards'}
