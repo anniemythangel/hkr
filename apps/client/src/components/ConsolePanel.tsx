@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { ConsoleEntry } from '../hooks/useSocket';
 
 interface ConsolePanelProps {
@@ -21,20 +21,31 @@ function formatTime(timestamp: number) {
 
 export function ConsolePanel({ entries }: ConsolePanelProps) {
   const scrollRef = useRef<HTMLElement | null>(null);
+  const bottomRef = useRef<HTMLLIElement | null>(null);
   const shouldStickRef = useRef(true);
 
   useEffect(() => {
     const node = scrollRef.current;
     if (!node) return;
 
-    const handleScroll = () => {
+    const updateStickiness = () => {
       shouldStickRef.current = isNearBottom(node);
     };
 
-    handleScroll();
-    node.addEventListener('scroll', handleScroll);
+    updateStickiness();
+    node.addEventListener('scroll', updateStickiness);
+
+    let resizeObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        updateStickiness();
+      });
+      resizeObserver.observe(node);
+    }
+
     return () => {
-      node.removeEventListener('scroll', handleScroll);
+      node.removeEventListener('scroll', updateStickiness);
+      resizeObserver?.disconnect();
     };
   }, []);
 
@@ -42,11 +53,9 @@ export function ConsolePanel({ entries }: ConsolePanelProps) {
     return entries.slice(-100).sort((a, b) => a.when - b.when);
   }, [entries]);
 
-  useEffect(() => {
-    const node = scrollRef.current;
-    if (!node) return;
+  useLayoutEffect(() => {
     if (shouldStickRef.current) {
-      node.scrollTop = node.scrollHeight;
+      bottomRef.current?.scrollIntoView({ block: 'end' });
     }
   }, [items]);
 
@@ -89,6 +98,7 @@ export function ConsolePanel({ entries }: ConsolePanelProps) {
               </li>
             );
           })}
+          <li aria-hidden ref={bottomRef} />
         </ul>
       </section>
     </div>
