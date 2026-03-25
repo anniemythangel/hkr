@@ -167,12 +167,14 @@ export function TableLayout({
 
     if (!trickFinished) return undefined
 
+    if (trickCooldownTimeoutRef.current !== null) {
+      window.clearTimeout(trickCooldownTimeoutRef.current)
+    }
     setTrickCooldown(true)
-    const timeout = window.setTimeout(() => {
+    trickCooldownTimeoutRef.current = window.setTimeout(() => {
       setTrickCooldown(false)
+      trickCooldownTimeoutRef.current = null
     }, TRICK_LINGER_DURATION)
-
-    return () => window.clearTimeout(timeout)
   }, [snapshot.completedTricks.length, snapshot.currentTrick?.cards.length, snapshot.currentTrick?.leader])
 
   useEffect(() => {
