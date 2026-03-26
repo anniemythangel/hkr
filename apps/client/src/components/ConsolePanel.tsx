@@ -21,7 +21,6 @@ function formatTime(timestamp: number) {
 
 export function ConsolePanel({ entries }: ConsolePanelProps) {
   const scrollRef = useRef<HTMLElement | null>(null);
-  const bottomRef = useRef<HTMLLIElement | null>(null);
   const shouldStickRef = useRef(true);
 
   useEffect(() => {
@@ -54,9 +53,11 @@ export function ConsolePanel({ entries }: ConsolePanelProps) {
   }, [entries]);
 
   useLayoutEffect(() => {
-    if (shouldStickRef.current) {
-      bottomRef.current?.scrollIntoView({ block: 'end' });
-    }
+    const node = scrollRef.current;
+    if (!node) return;
+    if (!shouldStickRef.current) return;
+
+    node.scrollTop = node.scrollHeight;
   }, [items]);
 
   return (
@@ -98,7 +99,6 @@ export function ConsolePanel({ entries }: ConsolePanelProps) {
               </li>
             );
           })}
-          <li aria-hidden ref={bottomRef} />
         </ul>
       </section>
     </div>
