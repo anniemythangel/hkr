@@ -51,7 +51,6 @@ describe('ConsolePanel sticky scrolling', () => {
   }
 
   it('auto-scrolls on new entries while sticky', () => {
-    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
     const { root, log } = mount(makeEntries(2));
     const metrics = { scrollHeight: 1000, clientHeight: 400, scrollTop: 600 };
     setScrollMetrics(log, metrics);
@@ -60,15 +59,13 @@ describe('ConsolePanel sticky scrolling', () => {
       log.dispatchEvent(new Event('scroll'));
     });
 
-    scrollIntoView.mockClear();
+    metrics.scrollTop = 500;
     update(root, makeEntries(3));
 
-    expect(scrollIntoView).toHaveBeenCalledTimes(1);
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'end' });
+    expect(metrics.scrollTop).toBe(1000);
   });
 
   it('does not force scroll while user is reading older entries', () => {
-    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
     const { root, log } = mount(makeEntries(2));
     const metrics = { scrollHeight: 1200, clientHeight: 400, scrollTop: 400 };
     setScrollMetrics(log, metrics);
@@ -77,14 +74,13 @@ describe('ConsolePanel sticky scrolling', () => {
       log.dispatchEvent(new Event('scroll'));
     });
 
-    scrollIntoView.mockClear();
+    metrics.scrollTop = 300;
     update(root, makeEntries(3));
 
-    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(metrics.scrollTop).toBe(300);
   });
 
   it('resumes sticky scrolling once user returns near bottom', () => {
-    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
     const { root, log } = mount(makeEntries(2));
     const metrics = { scrollHeight: 1200, clientHeight: 400, scrollTop: 400 };
     setScrollMetrics(log, metrics);
@@ -94,17 +90,41 @@ describe('ConsolePanel sticky scrolling', () => {
     });
 
     update(root, makeEntries(3));
-    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(metrics.scrollTop).toBe(400);
 
     metrics.scrollTop = 760; // 1200 - 760 - 400 = 40 (within near-bottom threshold)
     act(() => {
       log.dispatchEvent(new Event('scroll'));
     });
 
-    scrollIntoView.mockClear();
+    metrics.scrollTop = 700;
     update(root, makeEntries(4));
 
-    expect(scrollIntoView).toHaveBeenCalledTimes(1);
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'end' });
+    expect(metrics.scrollTop).toBe(1200);
+  });
+
+  it('only updates the log region scroll state when appending entries', () => {
+    const windowScrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const documentElement = document.documentElement;
+    Object.defineProperty(documentElement, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 125,
+    });
+
+    const { root, log } = mount(makeEntries(2));
+    const metrics = { scrollHeight: 900, clientHeight: 300, scrollTop: 600 };
+    setScrollMetrics(log, metrics);
+
+    act(() => {
+      log.dispatchEvent(new Event('scroll'));
+    });
+
+    metrics.scrollTop = 550;
+    update(root, makeEntries(3));
+
+    expect(metrics.scrollTop).toBe(900);
+    expect(windowScrollTo).not.toHaveBeenCalled();
+    expect(documentElement.scrollTop).toBe(125);
   });
 });
