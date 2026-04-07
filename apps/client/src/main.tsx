@@ -4,9 +4,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Lobby from './pages/Lobby'
 import TablePage from './pages/Table'
 import ResponsiveTestPage from './pages/ResponsiveTest'
+import StatsPage from './pages/Stats'
 import './styles.css'
 import './responsive.css'
-import { syncResponsiveModeClass } from './utils/featureFlags'
+import { ENABLE_STATS_UI, syncResponsiveModeClass } from './utils/featureFlags'
 
 syncResponsiveModeClass()
 
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         {enableResponsiveHarness ? (
           <Route path="/responsive-test" element={<ResponsiveTestPage />} />
         ) : null}
+        {ENABLE_STATS_UI ? <Route path="/stats" element={<StatsPage />} /> : null}
         {/* fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -37,6 +37,7 @@ function isPlayerId(value: unknown): value is PlayerId {
 export type RejoinToken = {
   roomId: string;
   name: string;
+  profileId?: string;
   serverUrl: string;
   role: ParticipantRole;
   seat?: PlayerId;
@@ -44,7 +45,7 @@ export type RejoinToken = {
 };
 
 type ConnectParams =
-  | { serverUrl?: string; roomId: string; name: string; role: 'player'; seat: PlayerId }
+  | { serverUrl?: string; roomId: string; name: string; role: 'player'; seat: PlayerId; profileId?: string }
   | { serverUrl?: string; roomId: string; name: string; role: 'spectator'; followSeat?: PlayerId };
 
 const STORAGE_KEY = 'hkr.rejoinToken';
@@ -69,6 +70,7 @@ function readToken(): RejoinToken | null {
       return {
         roomId: parsed.roomId,
         name: parsed.name,
+        profileId: typeof parsed.profileId === 'string' ? parsed.profileId : undefined,
         serverUrl,
         role: 'player',
         seat: parsed.seat,
@@ -80,10 +82,11 @@ function readToken(): RejoinToken | null {
         ? parsed.seat
         : undefined;
     return {
-      roomId: parsed.roomId,
-      name: parsed.name,
-      serverUrl,
-      role: 'spectator',
+        roomId: parsed.roomId,
+        name: parsed.name,
+        profileId: typeof parsed.profileId === 'string' ? parsed.profileId : undefined,
+        serverUrl,
+        role: 'spectator',
       followSeat,
     };
   } catch (error) {
@@ -159,6 +162,9 @@ export function useSocket(defaultServerUrl: string) {
         }
         payload.role = 'player';
         payload.player = join.seat;
+        if (join.profileId) {
+          payload.profileId = join.profileId;
+        }
         message =
           reason === 'reconnect'
             ? `Restored seat ${join.seat} in room ${join.roomId}`
@@ -189,6 +195,7 @@ export function useSocket(defaultServerUrl: string) {
         name: trimmedName,
         serverUrl: effectiveServer,
         role,
+        profileId: role === 'player' ? params.profileId : undefined,
         seat: role === 'player' ? params.seat : undefined,
         followSeat: role === 'spectator' ? params.followSeat : undefined,
       };
