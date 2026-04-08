@@ -49,6 +49,7 @@ describe('Calculator page overhaul', () => {
     expect(html).toContain('How to use this calculator')
     expect(html).toContain('Quick / Coach / Advanced')
     expect(html).toContain('Glossary / Help')
+    expect(html).toContain('Quick = shortest answer')
   })
 
   it('renders controls, timeline legend, and timeline state counter', () => {
@@ -59,7 +60,7 @@ describe('Calculator page overhaul', () => {
     expect(html).toContain('New What-If Branch')
     expect(html).toContain('type="range"')
     expect(html).toContain('Legend:')
-    expect(html).toContain('checkpoint')
+    expect(html).toContain('normal saved step')
     expect(html).toContain('State 1 of 1')
   })
 

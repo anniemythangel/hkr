@@ -73,9 +73,13 @@ type CalculatorPageProps = {
   initialState?: CalculatorGameState
 }
 
+function cloneGameState(state: CalculatorGameState): CalculatorGameState {
+  return JSON.parse(JSON.stringify(state)) as CalculatorGameState
+}
+
 export default function CalculatorPage({ initialState }: CalculatorPageProps) {
-  const [canonical] = useState<CalculatorGameState>(() => initialState ?? makeInitialState())
-  const [state, setState] = useState<CalculatorGameState>(() => initialState ?? makeInitialState())
+  const [canonical] = useState<CalculatorGameState>(() => cloneGameState(initialState ?? makeInitialState()))
+  const [state, setState] = useState<CalculatorGameState>(() => cloneGameState(initialState ?? makeInitialState()))
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string>('')
   const [viewMode, setViewMode] = useState<'Quick' | 'Coach' | 'Advanced'>('Quick')
@@ -113,7 +117,7 @@ export default function CalculatorPage({ initialState }: CalculatorPageProps) {
     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
       <h2>Hooker Calculator</h2>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button title="Reset to canonical initial calculator state" onClick={() => { setState(resetCalculatorState(canonical)); setSelected(null); setError('') }}>Reset</button>
+        <button title="Reset to canonical initial calculator state" onClick={() => { setState(resetCalculatorState(cloneGameState(canonical))); setSelected(null); setError('') }}>Reset</button>
         <button title="Deterministic random hand by seed" onClick={() => setState((s) => randomizeScenario(s, s.engine.seed))}>Random Hand</button>
         <label title="Select trump suit used in evaluations">Trump
           <select value={state.trump_suit} onChange={(e) => setState((s) => ({ ...s, trump_suit: e.target.value as CalculatorGameState['trump_suit'] }))}>
@@ -128,14 +132,14 @@ export default function CalculatorPage({ initialState }: CalculatorPageProps) {
         <button title="Create a new what-if branch" onClick={() => setState((s) => branchScenario(s).state)}>New What-If Branch</button>
       </div>
 
-      <section style={{ border: '1px solid #ddd', padding: 10, background: '#f8f9fa' }}>
+      <section style={{ border: '1px solid rgba(255,255,255,0.25)', padding: 10, background: 'rgba(6, 33, 25, 0.8)', color: '#e6fcf5' }}>
         <h3 style={{ marginTop: 0 }}>How to use this calculator</h3>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li><strong>Quick / Coach / Advanced:</strong> Quick shows only the ranked play list, Coach adds plain-language insights, Advanced also shows diagnostics JSON for debugging.</li>
+          <li><strong>Quick / Coach / Advanced:</strong> Quick = shortest answer. Coach = short advice in plain words. Advanced = extra context for experienced players.</li>
           <li><strong>Hidden / Visible:</strong> Hidden simulates real play by masking unknown hands; Visible keeps all assignments exposed for what-if analysis.</li>
-          <li><strong>Random Hand:</strong> Builds a full realistic deal each time (5 cards per player, 1 kitty top, 3 burned cards) using the current seed.</li>
+          <li><strong>Random Hand:</strong> Builds a full deal each time: 5 cards each player + 1 kitty card + 3 burned cards. Same seed = same deal.</li>
           <li><strong>Undo / Redo / Jump to First / New What-If Branch:</strong> Walk through history, return to the first checkpoint, or fork a separate branch from the current state.</li>
-          <li><strong>Timeline scrubber + markers:</strong> Drag the slider to inspect previous checkpoints; moving to an older point and assigning cards creates a new branch timeline from there.</li>
+          <li><strong>Timeline scrubber + markers:</strong> Drag the slider to move through past states. If you edit an older state, you start a new “what-if” path.</li>
         </ul>
       </section>
 
@@ -179,10 +183,11 @@ export default function CalculatorPage({ initialState }: CalculatorPageProps) {
           <details>
             <summary>Glossary / Help</summary>
             <p>
-              Win-now = chance this card takes the current trick. EV = expected downstream tricks from this choice.
-              Floor = conservative minimum you can still expect. P(≥2) = probability of reaching two or more tricks.
-              Confidence labels: high means assignments are well constrained, medium means there is moderate hidden uncertainty,
-              low means outcomes are highly sensitive to unknown cards.
+              Win now = how often this card wins the trick right away.
+              Future tricks = how many tricks this play usually helps you win later.
+              Safe minimum = the low-end result you can usually count on.
+              Chance to get 2+ = how often this line reaches two or more tricks.
+              Confidence high/medium/low = how sure the calculator is with missing information.
             </p>
           </details>
         </section>
@@ -195,7 +200,7 @@ export default function CalculatorPage({ initialState }: CalculatorPageProps) {
             ? evaluation.ranked.map((r) => (
               <div key={r.action.card} style={{ borderTop: '1px solid #eee', marginTop: 6 }}>
                 <strong>{r.action.card}</strong>
-                <div>Win now {(r.winCurrentTrickProb * 100).toFixed(1)}% | EV {r.expectedFutureTricks.toFixed(2)} | Floor {r.guaranteedMinFutureTricks} | P(≥2) {(r.probAtLeastXFutureTricks[2] * 100).toFixed(1)}%</div>
+                <div>Win now {(r.winCurrentTrickProb * 100).toFixed(1)}% | Future tricks {r.expectedFutureTricks.toFixed(2)} | Safe minimum {r.guaranteedMinFutureTricks} | Chance to get 2+ {(r.probAtLeastXFutureTricks[2] * 100).toFixed(1)}%</div>
               </div>
             ))
             : (
@@ -204,7 +209,18 @@ export default function CalculatorPage({ initialState }: CalculatorPageProps) {
               </div>
             )}
           {viewMode !== 'Quick' && insights.map((i) => <div key={i.id}><strong>{i.title}:</strong> {i.claim}</div>)}
-          {viewMode === 'Advanced' && <details><summary>Details</summary><pre style={{ fontSize: 11 }}>{JSON.stringify({ diagnostics: posterior.diagnostics, top: evaluation.best }, null, 2)}</pre></details>}
+          {viewMode === 'Advanced' && (
+            <details>
+              <summary>More context</summary>
+              <ul>
+                <li>Engine confidence: {posterior.confidence}</li>
+                <li>Worlds tested: {posterior.diagnostics.attempted}</li>
+                <li>Worlds that matched constraints: {posterior.diagnostics.accepted}</li>
+                <li>Acceptance ratio: {(posterior.diagnostics.acceptanceRatio * 100).toFixed(1)}%</li>
+                <li>Top play right now: {evaluation.best?.action.card ?? 'No legal play'}</li>
+              </ul>
+            </details>
+          )}
         </section>
       </div>
 
@@ -212,9 +228,10 @@ export default function CalculatorPage({ initialState }: CalculatorPageProps) {
         <label title="Timeline scrubber">Timeline
           <input type="range" min={0} max={Math.max(0, timelineCount - 1)} value={timelineCursor} onChange={(e) => setState((s) => jumpToTimeline(s, Number(e.target.value)))} />
         </label>
-        <div style={{ marginTop: 4, fontSize: 13 }}>State {timelineCursor + 1} of {timelineCount}</div>
-        <div style={{ fontSize: 13, marginTop: 4 }}>Scrubbing previews earlier checkpoints. If you edit from there, the timeline continues as a what-if branch.</div>
-        <div style={{ fontSize: 13, marginTop: 4 }}>Legend: <strong>•</strong> checkpoint, <strong>B</strong> branch checkpoint.</div>
+        <div style={{ marginTop: 4, fontSize: 13 }}><strong>State {timelineCursor + 1} of {timelineCount}</strong> ("1 of 5" means you are looking at the first saved step out of five).</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>Move the slider left/right to look at earlier or later saved steps. This does not delete anything.</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>If you make a change after going back in time, the app creates a new branch (alternate line).</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>Legend: <strong>•</strong> normal saved step, <strong>B</strong> alternate-branch saved step.</div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
           {(state.ui?.timeline_meta ?? []).map((m) => <span key={m.index} title={m.branch ? 'branch checkpoint' : 'checkpoint'} style={{ padding: '2px 6px', border: '1px solid #ddd' }}>{m.branch ? 'B' : '•'}{m.index}</span>)}
         </div>

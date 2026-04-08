@@ -7,9 +7,9 @@
 - Only two calculator visibility modes: `hidden` and `visible`.
 
 ## Quick start: what each mode is for
-- **Quick**: Fast recommendation view. You get ranked legal plays and core metrics only.
-- **Coach**: Adds plain-language insight cards that explain *why* the top line is preferred.
-- **Advanced**: Adds diagnostics JSON (backend diagnostics and top recommendation object) for debugging and deeper analysis.
+- **Quick**: Fast recommendation view. Just the ranked plays.
+- **Coach**: Adds short plain-language advice about *why* the top line is preferred.
+- **Advanced**: Adds extra context (counts and confidence) for experienced players.
 
 Example:
 - If Quick says `S_A` is best, Coach might add context like “Play S_A to maximize win-now while preserving floor.”
@@ -56,12 +56,12 @@ What to do next:
 - scrub timeline to an earlier playable state.
 
 ## Timeline and branching (player-language)
-- The timeline slider (“scrubber”) lets you move to older checkpoints without deleting history.
+- The timeline slider lets you move through saved steps without deleting history.
 - If you make edits from an earlier point, you create a what-if branch from that checkpoint.
 - Marker legend:
-  - `•` = checkpoint,
-  - `B` = branch checkpoint.
-- The UI also shows current position as “State X of Y”.
+  - `•` = normal saved step,
+  - `B` = saved step on an alternate branch.
+- The UI also shows current position as “State X of Y” (example: `State 1 of 5`).
 
 ## Assignment UX and errors
 - Assign controls are disabled until a card is selected.
@@ -71,9 +71,9 @@ What to do next:
 
 ## Glossary
 - **Win-now**: chance candidate card wins current trick.
-- **EV**: projected expected downstream tricks.
-- **Floor**: guaranteed minimum projection.
-- **P(≥2)**: probability of reaching at least 2 tricks.
+- **Future tricks**: how many tricks this play usually helps you win later.
+- **Safe minimum**: low-end result you can usually count on.
+- **Chance to get 2+**: how often this line reaches two or more tricks.
 - **Confidence high/medium/low**:
   - high: strongly constrained by known assignments,
   - medium: moderate hidden-card uncertainty,
