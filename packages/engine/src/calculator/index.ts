@@ -46,5 +46,6 @@ export function calcDrawTrumpDecision(state: import('./types').GameState, seat: 
 export function calcSacrificeDecision(state: import('./types').GameState, seat: import('./types').Seat) { return evaluateActions({ state, seat }); }
 export function calcGuaranteedTricks(state: import('./types').GameState, seat: import('./types').Seat) {
   const best = evaluateActions({ state, seat }).best;
+  if (!best) return { guaranteed: 0, expected: 0, distribution: {} as Record<number, number> };
   return { guaranteed: best.guaranteedMinFutureTricks, expected: best.expectedFutureTricks, distribution: best.probAtLeastXFutureTricks };
 }

@@ -6,25 +6,39 @@
 - No alternate rulesets.
 - Only two calculator visibility modes: `hidden` and `visible`.
 
-## Mode semantics
+## Quick start: what each mode is for
+- **Quick**: Fast recommendation view. You get ranked legal plays and core metrics only.
+- **Coach**: Adds plain-language insight cards that explain *why* the top line is preferred.
+- **Advanced**: Adds diagnostics JSON (backend diagnostics and top recommendation object) for debugging and deeper analysis.
+
+Example:
+- If Quick says `S_A` is best, Coach might add context like “Play S_A to maximize win-now while preserving floor.”
+- In Advanced, you can verify confidence and acceptance diagnostics behind that recommendation.
+
+## Hidden vs Visible
 - **Hidden mode**
   - Applies `maskStateForPerspective(state, seatPerspective)` before inference/evaluation.
   - Removes private opponent certainty from `known_locations` and private hand-zone visibility.
-  - Uses only publicly legal information, observed cards, and derived constraints.
+  - Mirrors real-play uncertainty.
 - **Visible mode**
   - Uses full assignments and known locations directly.
-  - Intended for explicit what-if analysis.
+  - Intended for explicit what-if and teaching analysis.
 
-## Trump selection behavior
-- `trump_suit` is an explicit required field in calculator state.
-- All recommendation scoring and indicators are recomputed whenever trump changes.
-- Trump selector supports `S/H/D/C` and updates immediately.
+## Random Hand behavior
+- Random Hand always creates a full legal world (deterministic by seed):
+  - `hand_you`: 5 cards,
+  - `hand_partner`: 5 cards,
+  - `hand_left`: 5 cards,
+  - `hand_right`: 5 cards,
+  - `kitty_top`: 1 card,
+  - `burned_pool`: 3 cards.
+- Hidden/Visible semantics are preserved at inference time (masking), not by generating partial worlds.
 
-## Recommendation outputs
+## Recommendation outputs and fallback behavior
 Every ranked action includes:
 - win-now probability,
-- expected downstream tricks,
-- guaranteed minimum,
+- expected downstream tricks (EV),
+- guaranteed minimum (floor),
 - probability of at least X tricks,
 - confidence/backend metadata and diagnostics (`attempted`, `accepted`, acceptance ratio).
 
@@ -34,42 +48,33 @@ Ranking order is stable:
 3. Risk tie-break,
 4. Card-id lexical tie for deterministic output.
 
-## Strategic indicator cards
-Headline indicators are recomputed on each assignment/play/timeline jump:
-- rival pair holding 3/4 remaining trump,
-- partner high-trump likelihood,
-- next-trick win chance,
-- chance to hit target tricks.
+If no legal play exists for your currently assigned hand, recommendation safely falls back to:
+- **“No legal recommendation available for current known hand assignment.”**
 
-Each indicator includes confidence and trend versus previous timeline node.
+What to do next:
+- assign at least one legal card to your hand, or
+- scrub timeline to an earlier playable state.
 
-## Controls and glossary
-Top controls:
-- Reset,
-- Random Hand (deterministic by seed),
-- Trump selector,
-- Hidden/Visible toggle,
-- Undo / Redo,
-- Jump to First State,
-- New What-If Branch.
+## Timeline and branching (player-language)
+- The timeline slider (“scrubber”) lets you move to older checkpoints without deleting history.
+- If you make edits from an earlier point, you create a what-if branch from that checkpoint.
+- Marker legend:
+  - `•` = checkpoint,
+  - `B` = branch checkpoint.
+- The UI also shows current position as “State X of Y”.
 
-Glossary:
-- **Win-now**: chance current candidate card wins the current trick.
+## Assignment UX and errors
+- Assign controls are disabled until a card is selected.
+- Click-assign and drop-assign both use the same guarded assignment transition.
+- After successful assignment, selected card is cleared to keep deterministic flow.
+- Invalid actions show inline non-blocking error banners (no blocking alerts).
+
+## Glossary
+- **Win-now**: chance candidate card wins current trick.
 - **EV**: projected expected downstream tricks.
 - **Floor**: guaranteed minimum projection.
-- **Confidence**: certainty derived from exact or MC acceptance characteristics.
-
-## Troubleshooting
-- Inline error banner appears for invalid assignment/capacity violations.
-- Assign buttons remain disabled until a card is selected.
-- Reset clears selection/history/branch context back to canonical initial state.
-- If MC acceptance ratio is low, inference confidence drops and should be interpreted cautiously.
-
-## Example interpretation (non-technical)
-If top recommendation shows:
-- Win now `72%`, EV `1.8`, Floor `1`, P(≥2) `48%`, Confidence `medium`,
-then practical meaning is:
-- “This card is likely to take the current trick,
-- usually yields around two future tricks,
-- but safely guarantees one in most worlds,
-- with moderate uncertainty due to hidden information.”
+- **P(≥2)**: probability of reaching at least 2 tricks.
+- **Confidence high/medium/low**:
+  - high: strongly constrained by known assignments,
+  - medium: moderate hidden-card uncertainty,
+  - low: highly sensitive to unknown-card worlds.

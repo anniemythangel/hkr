@@ -7,6 +7,7 @@ import {
   computePosterior,
   computeSummaryIndicators,
   evaluateActions,
+  generateInsights,
   maskStateForPerspective,
   randomizeScenario,
   resetCalculatorState,
@@ -85,6 +86,18 @@ describe('calculator hardening', () => {
     expect(evals.best.probAtLeastXFutureTricks[1]).toBeTypeOf('number');
   });
 
+  it('returns safe empty evaluation and fallback insight when no legal actions exist', () => {
+    const s = baseState();
+    s.zones.hand_you = [];
+    const posterior = computePosterior({ state: s, seatPerspective: 'you', backendPreference: 'exact' });
+    const evals = evaluateActions({ state: s, seat: 'you', posterior });
+    expect(evals.ranked).toEqual([]);
+    expect(evals.best).toBeNull();
+
+    const insights = generateInsights({ state: s, seat: 'you', posterior, evaluation: evals });
+    expect(insights[0]?.claim).toContain('No legal play available');
+  });
+
   it('assignment timeline supports undo/redo', () => {
     let s = baseState();
     s = assignCardToZone(s, 'C_A', 'burned_pool');
@@ -94,10 +107,20 @@ describe('calculator hardening', () => {
     expect(JSON.stringify(s.zones)).toBe(after);
   });
 
-  it('reset and randomize are deterministic', () => {
+  it('reset and randomize are deterministic and always deal a full world', () => {
     const s = randomizeScenario(baseState(), 7);
     const t = randomizeScenario(baseState(), 7);
     expect(s.zones.hand_you).toEqual(t.zones.hand_you);
+    expect(s.zones.hand_partner).toEqual(t.zones.hand_partner);
+    expect(s.zones.hand_left).toEqual(t.zones.hand_left);
+    expect(s.zones.hand_right).toEqual(t.zones.hand_right);
+    expect(s.zones.hand_you).toHaveLength(5);
+    expect(s.zones.hand_partner).toHaveLength(5);
+    expect(s.zones.hand_left).toHaveLength(5);
+    expect(s.zones.hand_right).toHaveLength(5);
+    expect(s.zones.kitty_top).toBeTruthy();
+    expect(s.zones.burned_pool).toHaveLength(3);
+
     const reset = resetCalculatorState(s);
     expect(reset.ui?.timeline_cursor).toBe(0);
   });
