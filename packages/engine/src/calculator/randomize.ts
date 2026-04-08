@@ -18,9 +18,9 @@ export function randomizeScenario(state: GameState, seed = state.engine.seed): G
   next.engine.seed = seed;
   const shuffled = [...next.cards].sort(() => rng() - 0.5);
   const you = shuffled.slice(0, 5);
-  const partner = next.mode === 'visible' ? shuffled.slice(5, 10) : [];
-  const left = next.mode === 'visible' ? shuffled.slice(10, 15) : [];
-  const right = next.mode === 'visible' ? shuffled.slice(15, 20) : [];
+  const partner = shuffled.slice(5, 10);
+  const left = shuffled.slice(10, 15);
+  const right = shuffled.slice(15, 20);
   const kitty = shuffled[20] ?? null;
   const burned = shuffled.slice(21, 24);
 

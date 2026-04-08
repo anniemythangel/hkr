@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type DragEvent } from 'react'
 import {
   RULESET_ID,
   assignCardToZone,
@@ -19,10 +19,10 @@ import {
 } from '@hooker/engine'
 
 const cards = [
-  'S_J_SHALIT','S_J_BROTHER','S_A','S_K','S_Q','S_10','S_9',
-  'H_A','H_K','H_Q','H_J','H_10','H_9',
-  'D_A','D_K','D_Q','D_J','D_10','D_9',
-  'C_A','C_K','C_Q','C_J','C_10','C_9',
+  'S_J_SHALIT', 'S_J_BROTHER', 'S_A', 'S_K', 'S_Q', 'S_10', 'S_9',
+  'H_A', 'H_K', 'H_Q', 'H_J', 'H_10', 'H_9',
+  'D_A', 'D_K', 'D_Q', 'D_J', 'D_10', 'D_9',
+  'C_A', 'C_K', 'C_Q', 'C_J', 'C_10', 'C_9',
 ]
 
 function cardImage(card: string) {
@@ -69,9 +69,17 @@ const ZONES: Array<{ label: string; loc: Location; help: string }> = [
   { label: 'Burned pool', loc: 'burned_pool', help: 'Cards removed from play.' },
 ]
 
-export default function CalculatorPage() {
-  const [canonical] = useState<CalculatorGameState>(() => makeInitialState())
-  const [state, setState] = useState<CalculatorGameState>(() => makeInitialState())
+type CalculatorPageProps = {
+  initialState?: CalculatorGameState
+}
+
+function cloneGameState(state: CalculatorGameState): CalculatorGameState {
+  return JSON.parse(JSON.stringify(state)) as CalculatorGameState
+}
+
+export default function CalculatorPage({ initialState }: CalculatorPageProps) {
+  const [canonical] = useState<CalculatorGameState>(() => cloneGameState(initialState ?? makeInitialState()))
+  const [state, setState] = useState<CalculatorGameState>(() => cloneGameState(initialState ?? makeInitialState()))
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string>('')
   const [viewMode, setViewMode] = useState<'Quick' | 'Coach' | 'Advanced'>('Quick')
@@ -80,12 +88,15 @@ export default function CalculatorPage() {
   const evaluation = useMemo(() => evaluateActions({ state, seat: 'you', posterior }), [state, posterior])
   const insights = useMemo(() => generateInsights({ state, seat: 'you', posterior, evaluation }), [state, posterior, evaluation])
   const indicators = useMemo(() => computeSummaryIndicators(state), [state])
+  const timelineCount = state.ui?.timeline?.length ?? 1
+  const timelineCursor = state.ui?.timeline_cursor ?? 0
 
-  const assign = (loc: Location) => {
+  const assignSelectedCard = (loc: Location) => {
     if (!selected) {
       setError('Select a card before assigning.')
       return
     }
+
     try {
       setState((s) => assignCardToZone({ ...s, ui: { ...s.ui, selected_card: selected } }, selected, loc))
       setSelected(null)
@@ -95,13 +106,18 @@ export default function CalculatorPage() {
     }
   }
 
+  const onDropToZone = (event: DragEvent<HTMLDivElement>, loc: Location) => {
+    event.preventDefault()
+    assignSelectedCard(loc)
+  }
+
   const health = validateState(state)
 
   return (
     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
       <h2>Hooker Calculator</h2>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button title="Reset to canonical initial calculator state" onClick={() => { setState(resetCalculatorState(canonical)); setSelected(null); setError('') }}>Reset</button>
+        <button title="Reset to canonical initial calculator state" onClick={() => { setState(resetCalculatorState(cloneGameState(canonical))); setSelected(null); setError('') }}>Reset</button>
         <button title="Deterministic random hand by seed" onClick={() => setState((s) => randomizeScenario(s, s.engine.seed))}>Random Hand</button>
         <label title="Select trump suit used in evaluations">Trump
           <select value={state.trump_suit} onChange={(e) => setState((s) => ({ ...s, trump_suit: e.target.value as CalculatorGameState['trump_suit'] }))}>
@@ -115,6 +131,17 @@ export default function CalculatorPage() {
         <button title="Jump to first timeline node" onClick={() => setState((s) => jumpToTimeline(s, 0))}>Jump to First State</button>
         <button title="Create a new what-if branch" onClick={() => setState((s) => branchScenario(s).state)}>New What-If Branch</button>
       </div>
+
+      <section style={{ border: '1px solid rgba(255,255,255,0.25)', padding: 10, background: 'rgba(6, 33, 25, 0.8)', color: '#e6fcf5' }}>
+        <h3 style={{ marginTop: 0 }}>How to use this calculator</h3>
+        <ul style={{ margin: 0, paddingLeft: 18 }}>
+          <li><strong>Quick / Coach / Advanced:</strong> Quick = shortest answer. Coach = short advice in plain words. Advanced = extra context for experienced players.</li>
+          <li><strong>Hidden / Visible:</strong> Hidden simulates real play by masking unknown hands; Visible keeps all assignments exposed for what-if analysis.</li>
+          <li><strong>Random Hand:</strong> Builds a full deal each time: 5 cards each player + 1 kitty card + 3 burned cards. Same seed = same deal.</li>
+          <li><strong>Undo / Redo / Jump to First / New What-If Branch:</strong> Walk through history, return to the first checkpoint, or fork a separate branch from the current state.</li>
+          <li><strong>Timeline scrubber + markers:</strong> Drag the slider to move through past states. If you edit an older state, you start a new “what-if” path.</li>
+        </ul>
+      </section>
 
       {!!error && <div role="alert" style={{ background: '#ffe3e3', border: '1px solid #ffa8a8', padding: 8 }}>{error}</div>}
       {!health.ok && <div role="alert" style={{ background: '#fff3bf', padding: 8 }}>{health.errors.join(' | ')}</div>}
@@ -136,9 +163,9 @@ export default function CalculatorPage() {
           <p>Selected: <strong>{selected ?? 'none'}</strong></p>
           <div style={{ display: 'grid', gap: 6 }}>
             {ZONES.map((z) => (
-              <div key={z.loc} onDragOver={(e) => e.preventDefault()} onDrop={() => assign(z.loc)} style={{ border: '1px dashed #aaa', padding: 8 }}>
+              <div key={z.loc} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDropToZone(e, z.loc)} style={{ border: '1px dashed #aaa', padding: 8 }}>
                 <strong title={z.help}>{z.label}</strong>
-                <button disabled={!selected} onClick={() => assign(z.loc)} style={{ marginLeft: 8 }}>Assign</button>
+                <button disabled={!selected} onClick={() => assignSelectedCard(z.loc)} style={{ marginLeft: 8 }}>Assign</button>
               </div>
             ))}
           </div>
@@ -153,29 +180,59 @@ export default function CalculatorPage() {
               <small>Trend {i.trendVsPrevious >= 0 ? '+' : ''}{(i.trendVsPrevious * 100).toFixed(1)}%</small>
             </div>
           ))}
-          <details><summary>Glossary / Help</summary><p>Win-now = chance this card wins current trick. Floor = guaranteed minimum tricks.</p></details>
+          <details>
+            <summary>Glossary / Help</summary>
+            <p>
+              Win now = how often this card wins the trick right away.
+              Future tricks = how many tricks this play usually helps you win later.
+              Safe minimum = the low-end result you can usually count on.
+              Chance to get 2+ = how often this line reaches two or more tricks.
+              Confidence high/medium/low = how sure the calculator is with missing information.
+            </p>
+          </details>
         </section>
 
         <section style={{ border: '1px solid #ddd', padding: 10 }}>
           <h3>Recommendation</h3>
           <div>Backend: {posterior.backendUsed} ({posterior.confidence})</div>
           <div>Acceptance ratio: {(posterior.diagnostics.acceptanceRatio * 100).toFixed(1)}%</div>
-          {evaluation.ranked.map((r) => (
-            <div key={r.action.card} style={{ borderTop: '1px solid #eee', marginTop: 6 }}>
-              <strong>{r.action.card}</strong>
-              <div>Win now {(r.winCurrentTrickProb * 100).toFixed(1)}% | EV {r.expectedFutureTricks.toFixed(2)} | Floor {r.guaranteedMinFutureTricks} | P(≥2) {(r.probAtLeastXFutureTricks[2] * 100).toFixed(1)}%</div>
-            </div>
-          ))}
+          {evaluation.best
+            ? evaluation.ranked.map((r) => (
+              <div key={r.action.card} style={{ borderTop: '1px solid #eee', marginTop: 6 }}>
+                <strong>{r.action.card}</strong>
+                <div>Win now {(r.winCurrentTrickProb * 100).toFixed(1)}% | Future tricks {r.expectedFutureTricks.toFixed(2)} | Safe minimum {r.guaranteedMinFutureTricks} | Chance to get 2+ {(r.probAtLeastXFutureTricks[2] * 100).toFixed(1)}%</div>
+              </div>
+            ))
+            : (
+              <div style={{ marginTop: 8, padding: 8, background: '#edf2ff', border: '1px solid #bac8ff' }}>
+                No legal recommendation available for current known hand assignment. Add a playable card to your hand or move on the timeline.
+              </div>
+            )}
           {viewMode !== 'Quick' && insights.map((i) => <div key={i.id}><strong>{i.title}:</strong> {i.claim}</div>)}
-          {viewMode === 'Advanced' && <details><summary>Details</summary><pre style={{ fontSize: 11 }}>{JSON.stringify({ diagnostics: posterior.diagnostics, top: evaluation.best }, null, 2)}</pre></details>}
+          {viewMode === 'Advanced' && (
+            <details>
+              <summary>More context</summary>
+              <ul>
+                <li>Engine confidence: {posterior.confidence}</li>
+                <li>Worlds tested: {posterior.diagnostics.attempted}</li>
+                <li>Worlds that matched constraints: {posterior.diagnostics.accepted}</li>
+                <li>Acceptance ratio: {(posterior.diagnostics.acceptanceRatio * 100).toFixed(1)}%</li>
+                <li>Top play right now: {evaluation.best?.action.card ?? 'No legal play'}</li>
+              </ul>
+            </details>
+          )}
         </section>
       </div>
 
       <div>
         <label title="Timeline scrubber">Timeline
-          <input type="range" min={0} max={Math.max(0, (state.ui?.timeline?.length ?? 1) - 1)} value={state.ui?.timeline_cursor ?? 0} onChange={(e) => setState((s) => jumpToTimeline(s, Number(e.target.value)))} />
+          <input type="range" min={0} max={Math.max(0, timelineCount - 1)} value={timelineCursor} onChange={(e) => setState((s) => jumpToTimeline(s, Number(e.target.value)))} />
         </label>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <div style={{ marginTop: 4, fontSize: 13 }}><strong>State {timelineCursor + 1} of {timelineCount}</strong> ("1 of 5" means you are looking at the first saved step out of five).</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>Move the slider left/right to look at earlier or later saved steps. This does not delete anything.</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>If you make a change after going back in time, the app creates a new branch (alternate line).</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>Legend: <strong>•</strong> normal saved step, <strong>B</strong> alternate-branch saved step.</div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
           {(state.ui?.timeline_meta ?? []).map((m) => <span key={m.index} title={m.branch ? 'branch checkpoint' : 'checkpoint'} style={{ padding: '2px 6px', border: '1px solid #ddd' }}>{m.branch ? 'B' : '•'}{m.index}</span>)}
         </div>
       </div>

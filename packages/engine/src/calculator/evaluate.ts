@@ -36,9 +36,24 @@ function evaluateCard(state: GameState, seat: Seat, card: string): ActionEvaluat
 export function evaluateActions(req: EvaluateActionsRequest): EvaluateActionsResponse {
   const started = Date.now();
   const posterior = req.posterior ?? exactPosterior(req.state);
-  const ranked = getLegalPlays(req.state, req.seat)
+  const legalPlays = getLegalPlays(req.state, req.seat);
+  const ranked = legalPlays
     .map((card) => evaluateCard(req.state, req.seat, card))
     .sort((a, b) => b.utilityScore - a.utilityScore || b.guaranteedMinFutureTricks - a.guaranteedMinFutureTricks || a.riskScore - b.riskScore || a.action.card.localeCompare(b.action.card));
+
+  if (!ranked.length) {
+    return {
+      ranked: [],
+      best: null,
+      metadata: {
+        backendUsed: posterior.backendUsed,
+        confidence: posterior.confidence,
+        computeMs: Date.now() - started,
+        policy: 'auto_exact_to_mc',
+      },
+    };
+  }
+
   return {
     ranked,
     best: ranked[0],
@@ -57,5 +72,6 @@ export function calcDrawTrumpDecision(state: GameState, seat: Seat) { return eva
 export function calcSacrificeDecision(state: GameState, seat: Seat) { return evaluateActions({ state, seat }); }
 export function calcGuaranteedTricks(state: GameState, seat: Seat) {
   const best = evaluateActions({ state, seat }).best;
+  if (!best) return { guaranteed: 0, expected: 0, distribution: {} as Record<number, number> };
   return { guaranteed: best.guaranteedMinFutureTricks, expected: best.expectedFutureTricks, distribution: best.probAtLeastXFutureTricks };
 }
