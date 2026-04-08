@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Card, MatchSnapshot, ParticipantRole, PlayerId, Suit, TeamId } from '@hooker/shared'
-import { GAME_ROTATION, PLAYERS, TEAMS } from '@hooker/shared'
+import { GAME_ROTATION, PLAYERS, TEAMS, classifyMatchHonorOutcome } from '@hooker/shared'
 import Hand from './Hand'
 import Seat from './Seat'
 import TrickArea, { COLLECT_ANIMATION_DURATION, TRICK_LINGER_DURATION } from './TrickArea'
@@ -94,11 +94,13 @@ export function TableLayout({
     if (snapshot.phase !== 'MatchOver') return null
     const totalGames = GAME_ROTATION.length
     const wins = snapshot.playerGameWins
-    const talson = PLAYERS.find((player) => wins[player] === totalGames)
+    const talson = PLAYERS.find(
+      (player) => classifyMatchHonorOutcome(wins[player], totalGames) === 'Talson',
+    )
     if (talson) {
       return { type: 'Talson' as const, player: talson }
     }
-    const usha = PLAYERS.find((player) => wins[player] === 0)
+    const usha = PLAYERS.find((player) => classifyMatchHonorOutcome(wins[player], totalGames) === 'Usha')
     if (usha) {
       return { type: 'Usha' as const, player: usha }
     }

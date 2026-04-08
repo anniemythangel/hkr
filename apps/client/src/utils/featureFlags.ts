@@ -16,6 +16,8 @@ export const ENABLE_RESPONSIVE_UI = parseBooleanFlag(
   import.meta.env.DEV || import.meta.env.MODE === 'test',
 )
 
+export const ENABLE_STATS_UI = parseBooleanFlag(import.meta.env.VITE_ENABLE_STATS_UI, false)
+
 export const RESPONSIVE_MODE_CLASS = 'is-responsive-enabled'
 
 export function syncResponsiveModeClass(target?: Element): void {

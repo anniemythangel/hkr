@@ -1,4 +1,5 @@
 import { createServer } from 'http';
+import { createHash } from 'crypto';
 import { Server } from 'socket.io';
 import { z } from 'zod';
 import {
@@ -10,11 +11,25 @@ import {
   handlePlayCard,
   advanceState,
 } from '@hooker/engine';
-import { GAME_ROTATION, PLAYERS, PlayerId, ParticipantRole, TEAMS } from '@hooker/shared';
+import {
+  GAME_ROTATION,
+  PLAYERS,
+  PlayerId,
+  ParticipantRole,
+  TEAMS,
+  classifyMatchHonorOutcome,
+} from '@hooker/shared';
 import type { HandScoreSummary, RoomLobbyState } from '@hooker/shared';
 import type { GameState } from '@hooker/engine';
+import { createStatsStore } from './statsStore.js';
 
 const port = Number(process.env.PORT ?? 3001);
+const ENABLE_PLAYER_STATS = parseBooleanFlag(process.env.ENABLE_PLAYER_STATS, false);
+const STATS_DB_PATH = process.env.STATS_DB_PATH ?? './player-stats.sqlite';
+const statsStore = ENABLE_PLAYER_STATS ? createStatsStore(STATS_DB_PATH) : null;
+if (statsStore) {
+  statsStore.runMigrations();
+}
 
 const httpServer = createServer((req, res) => {
   const rawUrl = req.url ?? '/';
@@ -119,6 +134,37 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
+  if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && requestUrl.pathname === '/stats/players') {
+    setCorsHeaders();
+    res
+      .writeHead(200, { 'Content-Type': 'application/json' })
+      .end(JSON.stringify({ ok: true, players: statsStore.listPlayerStats() }));
+    return;
+  }
+
+  const playerDetailsMatch = requestUrl.pathname.match(/^\/stats\/players\/([^/]+)$/);
+  if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && playerDetailsMatch) {
+    const profileId = decodeURIComponent(playerDetailsMatch[1]);
+    const details = statsStore.getPlayerDetails(profileId);
+    setCorsHeaders();
+    if (!details) {
+      res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Profile not found' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, player: details }));
+    return;
+  }
+
+  if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && requestUrl.pathname === '/stats/export.csv') {
+    const rows = statsStore.listPlayerStats();
+    const csv = ['profileId,displayName,talson,usha,neutral,matches,lastPlayed', ...rows.map((row) =>
+      [row.profileId, safeCsv(row.displayName), row.talson, row.usha, row.neutral, row.matches, row.lastPlayed ?? ''].join(','),
+    )].join('\n');
+    setCorsHeaders();
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8' }).end(csv);
+    return;
+  }
+
   setCorsHeaders();
   res
     .writeHead(404, { 'Content-Type': 'application/json' })
@@ -149,12 +195,12 @@ type ChatEntry = {
   when: number;
 };
 
-type RosterPayload = Partial<Record<PlayerId, { name: string; ready: boolean }>>;
+type RosterPayload = Partial<Record<PlayerId, { name: string; ready: boolean; profileId?: string }>>;
 
 const roomState = new Map<string, GameState>();
 const roomLogs = new Map<string, LogEntry[]>();
 const roomChats = new Map<string, ChatEntry[]>();
-const roomRosters = new Map<string, Map<PlayerId, { name: string; socketId: string; ready: boolean }>>();
+const roomRosters = new Map<string, Map<PlayerId, { name: string; socketId: string; ready: boolean; profileId?: string }>>();
 const roomSpectators = new Map<string, Map<string, { followSeat: PlayerId }>>();
 
 const MAX_SPECTATORS_PER_ROOM = 5;
@@ -216,6 +262,7 @@ const joinSchema = z
   .object({
     roomId: z.string(),
     name: z.string().min(1),
+    profileId: z.string().min(1).optional(),
     role: z.enum(['player', 'spectator']).optional(),
     player: playerIdSchema.optional(),
     followSeat: playerIdSchema.optional(),
@@ -275,7 +322,10 @@ type SocketData = {
   name?: string;
   role?: ParticipantRole;
   followSeat?: PlayerId;
+  profileId?: string;
 };
+
+const roomMatchIds = new Map<string, string>();
 
 io.on('connection', (socket) => {
   socket.data = {};
@@ -287,11 +337,20 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const { roomId, name } = parse.data;
+    const { roomId, name, profileId } = parse.data;
     const role: ParticipantRole = parse.data.role ?? 'player';
+    let resolvedProfileId: string | undefined = profileId;
+    if (role === 'player' && statsStore) {
+      try {
+        resolvedProfileId = statsStore.resolveProfile({ profileId, aliasRaw: name }).profileId;
+      } catch (error) {
+        console.warn('Stats profile resolution failed; continuing without stats profile.', error);
+      }
+    }
     socket.data.roomId = roomId;
     socket.data.name = name;
     socket.data.role = role;
+    socket.data.profileId = resolvedProfileId;
     socket.data.player = undefined;
     socket.data.followSeat = undefined;
 
@@ -313,7 +372,7 @@ io.on('connection', (socket) => {
       socket.join(roomId);
 
       const readyState = roomState.has(roomId) ? existing?.ready ?? false : false;
-      roster.set(player, { name, socketId: socket.id, ready: readyState });
+      roster.set(player, { name, socketId: socket.id, ready: readyState, profileId: resolvedProfileId });
       emitRoster(roomId);
       emitLobbyState(roomId);
 
@@ -642,6 +701,7 @@ function ensureMatchStarted(roomId: string) {
 
   const state = autoAdvance(createMatch(), roomId);
   roomState.set(roomId, state);
+  roomMatchIds.set(roomId, createMatchFingerprint(roomId, state));
   emitLobbyState(roomId);
   emitRoster(roomId);
   broadcastSnapshot(roomId, state);
@@ -668,6 +728,7 @@ function resetMatch(roomId: string, actor: ActorInfo = SYSTEM_ACTOR) {
 
   const newState = autoAdvance(createMatch(), roomId);
   roomState.set(roomId, newState);
+  roomMatchIds.set(roomId, createMatchFingerprint(roomId, newState));
 
   roomLogs.set(roomId, []);
 
@@ -764,11 +825,15 @@ function collectLogs(
     if (latest) {
       const totalGames = GAME_ROTATION.length;
       const honors: string[] = [];
-      const talson = PLAYERS.filter((player) => advanced.playerGameWins[player] === totalGames);
+      const talson = PLAYERS.filter(
+        (player) => classifyMatchHonorOutcome(advanced.playerGameWins[player], totalGames) === 'Talson',
+      );
       if (talson.length > 0) {
         honors.push(`Talson: ${talson.map((player) => formatPlayer(player)).join(', ')}`);
       }
-      const usha = PLAYERS.filter((player) => advanced.playerGameWins[player] === 0);
+      const usha = PLAYERS.filter(
+        (player) => classifyMatchHonorOutcome(advanced.playerGameWins[player], totalGames) === 'Usha',
+      );
       if (usha.length > 0) {
         honors.push(`Usha: ${usha.map((player) => formatPlayer(player)).join(', ')}`);
       }
@@ -782,6 +847,26 @@ function collectLogs(
         when: Date.now(),
         actor: SYSTEM_ACTOR,
       });
+
+      if (ENABLE_PLAYER_STATS && statsStore) {
+        const matchId = roomMatchIds.get(roomId) ?? createMatchFingerprint(roomId, advanced);
+        setTimeout(() => {
+          try {
+            const roster = roomRosters.get(roomId);
+            const outcomes = PLAYERS.map((player) => {
+              const profileId = roster?.get(player)?.profileId;
+              if (!profileId) return null;
+              return {
+                profileId,
+                outcome: classifyMatchHonorOutcome(advanced.playerGameWins[player], totalGames),
+              };
+            }).filter((item): item is { profileId: string; outcome: 'Talson' | 'Usha' | 'Neutral' } => Boolean(item));
+            statsStore.recordMatchOutcomes({ matchId, outcomes });
+          } catch (error) {
+            console.warn('Stats match outcome write failed; gameplay continues.', error);
+          }
+        }, 0);
+      }
     }
   }
 
@@ -837,7 +922,7 @@ function getRosterPayload(roomId: string): RosterPayload {
   }
   const result: RosterPayload = {};
   for (const [seat, info] of roster.entries()) {
-    result[seat] = { name: info.name, ready: info.ready };
+    result[seat] = { name: info.name, ready: info.ready, profileId: info.profileId };
   }
   return result;
 }
@@ -896,6 +981,35 @@ function appendChat(roomId: string, entry: ChatEntry) {
 
 function formatCard(rank: string, suit: string): string {
   return `${rank} of ${suit.charAt(0).toUpperCase()}${suit.slice(1)}`;
+}
+
+function parseBooleanFlag(rawValue: string | undefined, fallback: boolean): boolean {
+  if (!rawValue) return fallback;
+  const normalized = rawValue.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+}
+
+function safeCsv(value: string): string {
+  const escaped = value.replaceAll('"', '""');
+  return `"${escaped}"`;
+}
+
+function createMatchFingerprint(roomId: string, state: GameState): string {
+  const digest = createHash('sha256')
+    .update(
+      JSON.stringify({
+        roomId,
+        gameIndex: state.gameIndex,
+        scores: state.scores,
+        seating: state.seating,
+        gameResults: state.gameResults,
+      }),
+    )
+    .digest('hex')
+    .slice(0, 16);
+  return `${roomId}-${Date.now()}-${digest}`;
 }
 
 httpServer.listen(port, () => {

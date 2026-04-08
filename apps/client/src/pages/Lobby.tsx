@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ParticipantRole, PlayerId, PLAYERS } from '@hooker/shared'
 import { useSocket } from '../hooks/useSocket'
+import { ENABLE_STATS_UI } from '../utils/featureFlags'
 
 const DEFAULT_SERVER = import.meta.env.VITE_WS_URL ?? 'http://localhost:3001'
 const PLAYER_IDS: PlayerId[] = PLAYERS
@@ -61,7 +62,14 @@ export default function Lobby() {
     if (role === 'spectator') {
       connect({ serverUrl, roomId: trimmedRoom, name: trimmedName, role: 'spectator', followSeat })
     } else {
-      connect({ serverUrl, roomId: trimmedRoom, seat: playerId, name: trimmedName, role: 'player' })
+      connect({
+        serverUrl,
+        roomId: trimmedRoom,
+        seat: playerId,
+        name: trimmedName,
+        role: 'player',
+        profileId: token?.profileId,
+      })
     }
     nav(`/room/${encodeURIComponent(trimmedRoom)}`)
   }
@@ -127,6 +135,7 @@ export default function Lobby() {
         <div>
           <h1 className="title">Hooker Engine Demo</h1>
           <p className="subtitle">Friendlier MVP preview</p>
+          {ENABLE_STATS_UI ? <p><a href="/stats">Open stats</a></p> : null}
         </div>
         <div className="status-chip" role="status">Status: {status}</div>
       </header>
