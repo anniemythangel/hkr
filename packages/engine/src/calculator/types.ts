@@ -82,7 +82,7 @@ export type ActionEvaluation = {
 export type EvaluateActionsRequest = { state: GameState; seat: Seat; objective?: ObjectiveConfig; posterior?: PosteriorSummary };
 export type EvaluateActionsResponse = {
   ranked: ActionEvaluation[];
-  best: ActionEvaluation;
+  best: ActionEvaluation | null;
   metadata: { backendUsed: Backend; confidence: Confidence; computeMs: number; policy: 'auto_exact_to_mc' | 'forced' };
 };
 

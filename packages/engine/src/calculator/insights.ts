@@ -2,6 +2,21 @@ import type { GenerateInsightsRequest, InsightCard } from './types';
 
 export function generateInsights(req: GenerateInsightsRequest): InsightCard[] {
   const best = req.evaluation.best;
+  if (!best) {
+    return [
+      {
+        id: 'no-legal-play',
+        priority: 1,
+        title: 'Recommendation unavailable',
+        claim: 'No legal play available for current known hand assignment.',
+        evidence: 'Assign at least one legal card to your hand, or scrub the timeline to a playable state.',
+        confidence: req.evaluation.metadata.confidence,
+        mode: req.state.mode,
+        tags: ['recommendation', 'fallback'],
+      },
+    ];
+  }
+
   return [
     {
       id: 'best',
