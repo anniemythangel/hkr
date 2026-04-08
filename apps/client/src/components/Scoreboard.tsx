@@ -6,7 +6,12 @@ import type {
   PlayerId,
   TeamId,
 } from '@hooker/shared';
-import { HAND_TRICK_COUNT, MATCH_GAME_TARGET, PLAYERS } from '@hooker/shared';
+import {
+  HAND_TRICK_COUNT,
+  MATCH_GAME_TARGET,
+  PLAYERS,
+  classifyMatchHonorOutcome,
+} from '@hooker/shared';
 
 type NamedPlayer = {
   id: PlayerId;
@@ -105,11 +110,15 @@ export function Scoreboard({
   const honors: Array<{ label: string; players: NamedPlayer[] }> = [];
   if (match.phase === 'MatchOver') {
     const wins = match.playerGameWins;
-    const talson = PLAYERS.filter((player) => wins[player] === totalGames).map((player) => ({
+    const talson = PLAYERS.filter(
+      (player) => classifyMatchHonorOutcome(wins[player], totalGames) === 'Talson',
+    ).map((player) => ({
       id: player,
       name: match.playerNames[player] ?? player,
     }));
-    const usha = PLAYERS.filter((player) => wins[player] === 0).map((player) => ({
+    const usha = PLAYERS.filter(
+      (player) => classifyMatchHonorOutcome(wins[player], totalGames) === 'Usha',
+    ).map((player) => ({
       id: player,
       name: match.playerNames[player] ?? player,
     }));

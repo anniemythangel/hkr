@@ -7,6 +7,7 @@ import ChatBox from '../components/ChatBox'
 import TrickHistory from '../components/TrickHistory'
 import Scoreboard from '../components/Scoreboard'
 import { Suit, Card, PlayerId, ParticipantRole, TEAMS, GAME_ROTATION, PLAYERS } from '@hooker/shared'
+import { ENABLE_STATS_UI } from '../utils/featureFlags'
 
 export default function TablePage() {
   const { roomId: routeRoom } = useParams()
@@ -44,6 +45,7 @@ export default function TablePage() {
           seat: token.seat,
           name: token.name,
           role: 'player',
+          profileId: token.profileId,
         })
       }
     }
@@ -188,6 +190,7 @@ export default function TablePage() {
         <div>
           <h1 className="title">Hooker Engine Demo</h1>
           <p className="subtitle">Friendlier MVP preview</p>
+          {ENABLE_STATS_UI ? <p><a href="/stats">Open stats</a></p> : null}
         </div>
         <div className="status-chip" role="status">Status: {status}</div>
       </header>

@@ -137,3 +137,18 @@ export interface RoomLobbyState {
   allReady: boolean;
   matchStarted: boolean;
 }
+
+export type MatchHonorOutcome = 'Talson' | 'Usha' | 'Neutral';
+
+export function classifyMatchHonorOutcome(
+  wins: number,
+  rotationLength: number,
+): MatchHonorOutcome {
+  if (wins === rotationLength) {
+    return 'Talson';
+  }
+  if (wins === 0) {
+    return 'Usha';
+  }
+  return 'Neutral';
+}
