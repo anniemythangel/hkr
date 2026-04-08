@@ -9,7 +9,7 @@ import {
   jumpToTimeline,
   redo,
   setMode,
-  type GameState,
+  type CalculatorGameState,
   type Location,
   undo,
 } from '@hooker/engine'
@@ -21,7 +21,7 @@ const cards = [
   'C_A','C_K','C_Q','C_J','C_10','C_9',
 ]
 
-function makeInitialState(): GameState {
+function makeInitialState(): CalculatorGameState {
   return {
     ruleset_id: RULESET_ID,
     mode: 'hidden',
@@ -56,7 +56,7 @@ function makeInitialState(): GameState {
 }
 
 export default function CalculatorPage() {
-  const [state, setState] = useState<GameState>(() => makeInitialState())
+  const [state, setState] = useState<CalculatorGameState>(() => makeInitialState())
   const [selected, setSelected] = useState<string | null>(null)
 
   const posterior = useMemo(() => computePosterior({ state, seatPerspective: 'you', backendPreference: 'auto', sampleBudget: 1200 }), [state])
