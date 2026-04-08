@@ -1,0 +1,12 @@
+{
+  "shape": {
+    "recommendation": ["action", "winCurrentTrickProb", "expectedFutureTricks", "guaranteedMinFutureTricks", "probAtLeastXFutureTricks", "riskScore", "utilityScore"],
+    "insights": ["id", "title", "claim", "evidence", "confidence"],
+    "posterior": ["backendUsed", "confidence", "diagnostics", "cardLocationDistributions"]
+  },
+  "stability": {
+    "seed": 42,
+    "expectedBackend": "exact",
+    "ordering": "utility-floor-risk-lexical"
+  }
+}
