@@ -5,6 +5,7 @@ import Lobby from './pages/Lobby'
 import TablePage from './pages/Table'
 import ResponsiveTestPage from './pages/ResponsiveTest'
 import StatsPage from './pages/Stats'
+import CalculatorPage from './pages/Calculator'
 import './styles.css'
 import './responsive.css'
 import { ENABLE_STATS_UI, syncResponsiveModeClass } from './utils/featureFlags'
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/responsive-test" element={<ResponsiveTestPage />} />
         ) : null}
         {ENABLE_STATS_UI ? <Route path="/stats" element={<StatsPage />} /> : null}
+        <Route path="/calculator" element={<CalculatorPage />} />
         {/* fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
