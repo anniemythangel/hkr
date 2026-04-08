@@ -1,8 +1,12 @@
 import { createStatsStore } from '../src/statsStore.js';
 
-const STATS_DB_PATH = process.env.STATS_DB_PATH ?? './player-stats.sqlite';
-const store = createStatsStore(STATS_DB_PATH);
-store.runMigrations();
+const TURSO_DATABASE_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+if (!TURSO_DATABASE_URL) {
+  throw new Error('TURSO_DATABASE_URL is required');
+}
+const store = createStatsStore({ url: TURSO_DATABASE_URL, authToken: TURSO_AUTH_TOKEN });
+await store.runMigrations();
 
 const seeds: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: 'Azri', aliases: ['Azri', 'Azrikam', 'עזריקם'] },
@@ -18,11 +22,11 @@ const seeds: Array<{ canonical: string; aliases: string[] }> = [
 ];
 
 for (const seed of seeds) {
-  const profile = store.resolveProfile({ aliasRaw: seed.canonical });
-  store.renameProfile(profile.profileId, seed.canonical);
+  const profile = await store.resolveProfile({ aliasRaw: seed.canonical });
+  await store.renameProfile(profile.profileId, seed.canonical);
   for (const alias of seed.aliases) {
-    store.addAlias(profile.profileId, alias);
+    await store.addAlias(profile.profileId, alias);
   }
 }
 
-console.log(`Seeded player profiles into ${STATS_DB_PATH}`);
+console.log(`Seeded player profiles into ${TURSO_DATABASE_URL}`);

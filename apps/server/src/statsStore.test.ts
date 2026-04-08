@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { classifyMatchHonorOutcome } from '@hooker/shared';
 import { createStatsStore, normalizeAlias } from './statsStore.js';
 
-function createTestStore() {
+async function createTestStore() {
   const dir = mkdtempSync(join(tmpdir(), 'hkr-stats-'));
-  const store = createStatsStore(join(dir, 'stats.sqlite'));
-  store.runMigrations();
+  const store = createStatsStore({ url: `file:${join(dir, 'stats.sqlite')}` });
+  await store.runMigrations();
   return store;
 }
 
@@ -31,36 +31,36 @@ describe('classifyMatchHonorOutcome', () => {
 });
 
 describe('stats store', () => {
-  it('records outcomes idempotently per match/profile', () => {
-    const store = createTestStore();
-    const p = store.resolveProfile({ aliasRaw: 'Azri' });
-    store.recordMatchOutcomes({
+  it('records outcomes idempotently per match/profile', async () => {
+    const store = await createTestStore();
+    const p = await store.resolveProfile({ aliasRaw: 'Azri' });
+    await store.recordMatchOutcomes({
       matchId: 'm1',
       outcomes: [{ profileId: p.profileId, outcome: 'Talson' }],
     });
-    store.recordMatchOutcomes({
+    await store.recordMatchOutcomes({
       matchId: 'm1',
       outcomes: [{ profileId: p.profileId, outcome: 'Talson' }],
     });
-    const row = store.listPlayerStats().find((item) => item.profileId === p.profileId);
+    const row = (await store.listPlayerStats()).find((item) => item.profileId === p.profileId);
     expect(row?.matches).toBe(1);
     expect(row?.talson).toBe(1);
   });
 
-  it('resolves alias fallback and merges profiles', () => {
-    const store = createTestStore();
-    const a = store.resolveProfile({ aliasRaw: 'Bravi' });
-    const b = store.resolveProfile({ aliasRaw: 'Brucha' });
-    store.recordMatchOutcomes({ matchId: 'm1', outcomes: [{ profileId: a.profileId, outcome: 'Neutral' }] });
-    store.recordMatchOutcomes({ matchId: 'm2', outcomes: [{ profileId: b.profileId, outcome: 'Usha' }] });
-    store.mergeProfiles(b.profileId, a.profileId);
+  it('resolves alias fallback and merges profiles', async () => {
+    const store = await createTestStore();
+    const a = await store.resolveProfile({ aliasRaw: 'Bravi' });
+    const b = await store.resolveProfile({ aliasRaw: 'Brucha' });
+    await store.recordMatchOutcomes({ matchId: 'm1', outcomes: [{ profileId: a.profileId, outcome: 'Neutral' }] });
+    await store.recordMatchOutcomes({ matchId: 'm2', outcomes: [{ profileId: b.profileId, outcome: 'Usha' }] });
+    await store.mergeProfiles(b.profileId, a.profileId);
 
-    const details = store.getPlayerDetails(a.profileId);
+    const details = await store.getPlayerDetails(a.profileId);
     expect(details?.aliases.length).toBeGreaterThan(0);
-    const row = store.listPlayerStats().find((item) => item.profileId === a.profileId);
+    const row = (await store.listPlayerStats()).find((item) => item.profileId === a.profileId);
     expect(row?.matches).toBe(2);
 
-    const fromAlias = store.resolveProfile({ aliasRaw: 'BRUCHA' });
+    const fromAlias = await store.resolveProfile({ aliasRaw: 'BRUCHA' });
     expect(fromAlias.profileId).toBe(a.profileId);
   });
 });

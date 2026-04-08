@@ -21,14 +21,21 @@ import {
 } from '@hooker/shared';
 import type { HandScoreSummary, RoomLobbyState } from '@hooker/shared';
 import type { GameState } from '@hooker/engine';
-import { createStatsStore } from './statsStore.js';
+import { createStatsStore, type PlayerStatsStore } from './statsStore.js';
 
 const port = Number(process.env.PORT ?? 3001);
 const ENABLE_PLAYER_STATS = parseBooleanFlag(process.env.ENABLE_PLAYER_STATS, false);
-const STATS_DB_PATH = process.env.STATS_DB_PATH ?? './player-stats.sqlite';
-const statsStore = ENABLE_PLAYER_STATS ? createStatsStore(STATS_DB_PATH) : null;
-if (statsStore) {
-  statsStore.runMigrations();
+const TURSO_DATABASE_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+
+let statsStore: PlayerStatsStore | null = null;
+if (ENABLE_PLAYER_STATS) {
+  if (!TURSO_DATABASE_URL) {
+    console.warn('ENABLE_PLAYER_STATS is true but TURSO_DATABASE_URL is missing; stats disabled.');
+  } else {
+    statsStore = createStatsStore({ url: TURSO_DATABASE_URL, authToken: TURSO_AUTH_TOKEN });
+    await statsStore.runMigrations();
+  }
 }
 
 const httpServer = createServer((req, res) => {
@@ -135,33 +142,60 @@ const httpServer = createServer((req, res) => {
   }
 
   if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && requestUrl.pathname === '/stats/players') {
-    setCorsHeaders();
-    res
-      .writeHead(200, { 'Content-Type': 'application/json' })
-      .end(JSON.stringify({ ok: true, players: statsStore.listPlayerStats() }));
+    void statsStore
+      .listPlayerStats()
+      .then((players) => {
+        setCorsHeaders();
+        res
+          .writeHead(200, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ ok: true, players }));
+      })
+      .catch((error) => {
+        console.warn('Failed to load player stats', error);
+        setCorsHeaders();
+        res
+          .writeHead(500, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ ok: false, error: 'Failed to load stats' }));
+      });
     return;
   }
 
   const playerDetailsMatch = requestUrl.pathname.match(/^\/stats\/players\/([^/]+)$/);
   if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && playerDetailsMatch) {
     const profileId = decodeURIComponent(playerDetailsMatch[1]);
-    const details = statsStore.getPlayerDetails(profileId);
-    setCorsHeaders();
-    if (!details) {
-      res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Profile not found' }));
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, player: details }));
+    void statsStore
+      .getPlayerDetails(profileId)
+      .then((details) => {
+        setCorsHeaders();
+        if (!details) {
+          res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Profile not found' }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, player: details }));
+      })
+      .catch((error) => {
+        console.warn('Failed to load player details', error);
+        setCorsHeaders();
+        res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Failed to load player details' }));
+      });
     return;
   }
 
   if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && requestUrl.pathname === '/stats/export.csv') {
-    const rows = statsStore.listPlayerStats();
-    const csv = ['profileId,displayName,talson,usha,neutral,matches,lastPlayed', ...rows.map((row) =>
-      [row.profileId, safeCsv(row.displayName), row.talson, row.usha, row.neutral, row.matches, row.lastPlayed ?? ''].join(','),
-    )].join('\n');
-    setCorsHeaders();
-    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8' }).end(csv);
+    void statsStore
+      .listPlayerStats()
+      .then((rows) => {
+        const csv = ['profileId,displayName,talson,usha,neutral,matches,lastPlayed', ...rows.map((row) =>
+          [row.profileId, safeCsv(row.displayName), row.talson, row.usha, row.neutral, row.matches, row.lastPlayed ?? ''].join(','),
+        )].join('\n');
+        setCorsHeaders();
+        res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8' }).end(csv);
+      })
+      .catch((error) => {
+        console.warn('Failed to export stats CSV', error);
+        setCorsHeaders();
+        res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Failed to export stats' }));
+      });
     return;
   }
 
@@ -330,7 +364,7 @@ const roomMatchIds = new Map<string, string>();
 io.on('connection', (socket) => {
   socket.data = {};
 
-  socket.on('join', (raw) => {
+  socket.on('join', async (raw) => {
     const parse = joinSchema.safeParse(raw);
     if (!parse.success) {
       socket.emit('errorMessage', parse.error.message);
@@ -342,7 +376,7 @@ io.on('connection', (socket) => {
     let resolvedProfileId: string | undefined = profileId;
     if (role === 'player' && statsStore) {
       try {
-        resolvedProfileId = statsStore.resolveProfile({ profileId, aliasRaw: name }).profileId;
+        resolvedProfileId = (await statsStore.resolveProfile({ profileId, aliasRaw: name })).profileId;
       } catch (error) {
         console.warn('Stats profile resolution failed; continuing without stats profile.', error);
       }
@@ -861,7 +895,9 @@ function collectLogs(
                 outcome: classifyMatchHonorOutcome(advanced.playerGameWins[player], totalGames),
               };
             }).filter((item): item is { profileId: string; outcome: 'Talson' | 'Usha' | 'Neutral' } => Boolean(item));
-            statsStore.recordMatchOutcomes({ matchId, outcomes });
+            void statsStore.recordMatchOutcomes({ matchId, outcomes }).catch((error) => {
+              console.warn('Stats match outcome write failed; gameplay continues.', error);
+            });
           } catch (error) {
             console.warn('Stats match outcome write failed; gameplay continues.', error);
           }
