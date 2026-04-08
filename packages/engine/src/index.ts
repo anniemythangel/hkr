@@ -13,3 +13,5 @@ export {
 export * from './types';
 export { effectiveSuit, determineTrickWinner, resolveTrick, type SeatTrickPlay } from './trick';
 export { scoreHand } from './scoring';
+
+export * from './calculator';
