@@ -29,13 +29,24 @@ const TURSO_DATABASE_URL = process.env.TURSO_DATABASE_URL;
 const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
 
 let statsStore: PlayerStatsStore | null = null;
-if (ENABLE_PLAYER_STATS) {
+
+async function initStatsStore(): Promise<PlayerStatsStore | null> {
+  if (!ENABLE_PLAYER_STATS) {
+    return null;
+  }
+
   if (!TURSO_DATABASE_URL) {
     console.warn('ENABLE_PLAYER_STATS is true but TURSO_DATABASE_URL is missing; stats disabled.');
-  } else {
-    statsStore = createStatsStore({ url: TURSO_DATABASE_URL, authToken: TURSO_AUTH_TOKEN });
-    await statsStore.runMigrations();
+    return null;
   }
+
+  const store = createStatsStore({
+    url: TURSO_DATABASE_URL,
+    authToken: TURSO_AUTH_TOKEN,
+  });
+
+  await store.runMigrations();
+  return store;
 }
 
 const httpServer = createServer((req, res) => {
@@ -1048,6 +1059,15 @@ function createMatchFingerprint(roomId: string, state: GameState): string {
   return `${roomId}-${Date.now()}-${digest}`;
 }
 
-httpServer.listen(port, () => {
-  console.log(`Hooker server listening on port ${port}`);
+async function bootstrap() {
+  statsStore = await initStatsStore();
+
+  httpServer.listen(port, () => {
+    console.log(`Hooker server listening on port ${port}`);
+  });
+}
+
+bootstrap().catch((error) => {
+  console.error('Failed to bootstrap server', error);
+  process.exit(1);
 });
