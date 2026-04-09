@@ -40,6 +40,40 @@ switch (command) {
     console.log(`Renamed ${profileId} to ${displayName}`);
     break;
   }
+  case 'check-honor-consistency': {
+    const invalidRows = await store.listInvalidMixedHonorMatches();
+    console.log('Invalid mixed-honor check SQL:');
+    console.log(`SELECT match_id, recorded_at
+FROM match_history
+WHERE (
+  honor_a = 'Talson' OR honor_b = 'Talson' OR honor_c = 'Talson' OR honor_d = 'Talson'
+) AND (
+  honor_a = 'Usha' OR honor_b = 'Usha' OR honor_c = 'Usha' OR honor_d = 'Usha'
+)
+ORDER BY recorded_at DESC;`);
+    if (invalidRows.length === 0) {
+      console.log('No invalid mixed-honor rows found.');
+    } else {
+      console.log(`Found ${invalidRows.length} invalid mixed-honor rows:`);
+      for (const row of invalidRows) {
+        console.log(`${row.recordedAt} ${row.matchId}`);
+      }
+    }
+    break;
+  }
+  case 'cleanup-honor-consistency': {
+    console.log('One-time cleanup SQL (sets mixed rows to Neutral):');
+    console.log(`UPDATE match_history
+SET honor_a = 'Neutral', honor_b = 'Neutral', honor_c = 'Neutral', honor_d = 'Neutral'
+WHERE (
+  honor_a = 'Talson' OR honor_b = 'Talson' OR honor_c = 'Talson' OR honor_d = 'Talson'
+) AND (
+  honor_a = 'Usha' OR honor_b = 'Usha' OR honor_c = 'Usha' OR honor_d = 'Usha'
+);`);
+    const updated = await store.normalizeInvalidMixedHonorMatches();
+    console.log(`Normalized ${updated} invalid mixed-honor rows.`);
+    break;
+  }
   default:
-    throw new Error('Usage: statsAdmin.ts <merge|add-alias|remove-alias|rename> ...args');
+    throw new Error('Usage: statsAdmin.ts <merge|add-alias|remove-alias|rename|check-honor-consistency|cleanup-honor-consistency> ...args');
 }

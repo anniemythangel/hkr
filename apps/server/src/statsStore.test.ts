@@ -1,15 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createClient } from '@libsql/client';
 import { classifyMatchHonorOutcome } from '@hooker/shared';
 import { createStatsStore, normalizeAlias } from './statsStore.js';
 
 async function createTestStore() {
   const dir = mkdtempSync(join(tmpdir(), 'hkr-stats-'));
-  const store = createStatsStore({ url: `file:${join(dir, 'stats.sqlite')}` });
+  const url = `file:${join(dir, 'stats.sqlite')}`;
+  const store = createStatsStore({ url });
   await store.runMigrations();
-  return store;
+  return { store, url };
 }
 
 describe('normalizeAlias', () => {
@@ -32,7 +34,7 @@ describe('classifyMatchHonorOutcome', () => {
 
 describe('stats store', () => {
   it('creates and reads match_history rows with pagination/filtering', async () => {
-    const store = await createTestStore();
+    const { store } = await createTestStore();
     const a = await store.resolveProfile({ aliasRaw: 'Avi' });
     const b = await store.resolveProfile({ aliasRaw: 'Beni' });
     const c = await store.resolveProfile({ aliasRaw: 'Chaim' });
@@ -87,7 +89,7 @@ describe('stats store', () => {
   });
 
   it('records outcomes idempotently per match/profile', async () => {
-    const store = await createTestStore();
+    const { store } = await createTestStore();
     const p = await store.resolveProfile({ aliasRaw: 'Azri' });
     await store.recordMatchOutcomes({
       matchId: 'm1',
@@ -103,7 +105,7 @@ describe('stats store', () => {
   });
 
   it('resolves alias fallback and merges profiles', async () => {
-    const store = await createTestStore();
+    const { store } = await createTestStore();
     const a = await store.resolveProfile({ aliasRaw: 'Bravi' });
     const b = await store.resolveProfile({ aliasRaw: 'Brucha' });
     await store.recordMatchOutcomes({ matchId: 'm1', outcomes: [{ profileId: a.profileId, outcome: 'Neutral' }] });
@@ -120,7 +122,7 @@ describe('stats store', () => {
   });
 
   it('paginates player recent outcomes', async () => {
-    const store = await createTestStore();
+    const { store } = await createTestStore();
     const p = await store.resolveProfile({ aliasRaw: 'Paged Player' });
     await store.recordMatchOutcomes({
       matchId: 'p-1',
@@ -140,5 +142,43 @@ describe('stats store', () => {
       beforeRecordedAt: first?.recentOutcomesNextCursor ?? undefined,
     });
     expect(second?.recentOutcomes.some((entry) => entry.matchId === 'p-1')).toBe(true);
+  });
+
+  it('rejects mixed Talson/Usha match history writes', async () => {
+    const { store } = await createTestStore();
+    await expect(
+      store.recordMatchHistory({
+        matchId: 'invalid-1',
+        playerAProfileId: null,
+        playerBProfileId: null,
+        playerCProfileId: null,
+        playerDProfileId: null,
+        r1NorthSouth: 16,
+        r1EastWest: 8,
+        r2NorthSouth: 8,
+        r2EastWest: 16,
+        r3NorthSouth: 16,
+        r3EastWest: 12,
+        honorA: 'Talson',
+        honorB: 'Neutral',
+        honorC: 'Usha',
+        honorD: 'Neutral',
+      }),
+    ).rejects.toThrow('cannot mix Talson and Usha');
+  });
+
+  it('maps invalid mixed honors to Neutral during reads', async () => {
+    const { store, url } = await createTestStore();
+    const db = createClient({ url });
+    await db.execute({
+      sql: `INSERT INTO match_history(
+        match_id, recorded_at, r1_ns, r1_ew, r2_ns, r2_ew, r3_ns, r3_ew, honor_a, honor_b, honor_c, honor_d
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: ['mixed-row', '2026-01-01T00:00:00.000Z', 16, 10, 12, 16, 16, 9, 'Talson', 'Neutral', 'Usha', 'Neutral'],
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const rows = await store.listMatchHistory();
+    expect(rows.rows[0]?.honors).toEqual({ A: 'Neutral', B: 'Neutral', C: 'Neutral', D: 'Neutral' });
+    expect(warnSpy).toHaveBeenCalled();
   });
 });
