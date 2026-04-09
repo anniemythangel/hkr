@@ -1962,3 +1962,50 @@ button:disabled {
     transition: none;
   }
 }
+
+.stats-page table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.stats-page th,
+.stats-page td {
+  text-align: left;
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid rgba(148, 197, 166, 0.18);
+  vertical-align: top;
+}
+
+.stats-page tbody tr:hover {
+  background: rgba(15, 34, 28, 0.55);
+}
+
+.stats-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.honor-chip {
+  display: inline-block;
+  margin: 0.1rem 0.3rem 0.1rem 0;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid transparent;
+}
+
+.honor-talson {
+  background: rgba(22, 163, 74, 0.2);
+  border-color: rgba(74, 222, 128, 0.45);
+}
+
+.honor-usha {
+  background: rgba(153, 27, 27, 0.28);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.honor-neutral {
+  background: rgba(51, 65, 85, 0.35);
+  border-color: rgba(148, 163, 184, 0.45);
+}

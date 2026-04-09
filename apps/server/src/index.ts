@@ -59,7 +59,7 @@ const httpServer = createServer((req, res) => {
 
   const setCorsHeaders = () => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   };
 
@@ -152,6 +152,27 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
+  if ((req.method === 'GET' || req.method === 'HEAD') && requestUrl.pathname === '/stats/health') {
+    const isAvailable = ENABLE_PLAYER_STATS && Boolean(statsStore);
+    setCorsHeaders();
+    res.writeHead(isAvailable ? 200 : 503, { 'Content-Type': 'application/json' });
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
+    res.end(
+      JSON.stringify({
+        ok: isAvailable,
+        stats: {
+          enabled: ENABLE_PLAYER_STATS,
+          configured: Boolean(TURSO_DATABASE_URL),
+          available: isAvailable,
+        },
+      }),
+    );
+    return;
+  }
+
   if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && requestUrl.pathname === '/stats/players') {
     void statsStore
       .listPlayerStats()
@@ -174,8 +195,10 @@ const httpServer = createServer((req, res) => {
   const playerDetailsMatch = requestUrl.pathname.match(/^\/stats\/players\/([^/]+)$/);
   if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && playerDetailsMatch) {
     const profileId = decodeURIComponent(playerDetailsMatch[1]);
+    const limit = parsePositiveInt(requestUrl.searchParams.get('limit'));
+    const beforeRecordedAt = requestUrl.searchParams.get('beforeRecordedAt') ?? undefined;
     void statsStore
-      .getPlayerDetails(profileId)
+      .getPlayerDetails(profileId, { limit, beforeRecordedAt })
       .then((details) => {
         setCorsHeaders();
         if (!details) {
@@ -188,6 +211,24 @@ const httpServer = createServer((req, res) => {
         console.warn('Failed to load player details', error);
         setCorsHeaders();
         res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Failed to load player details' }));
+      });
+    return;
+  }
+
+  if (ENABLE_PLAYER_STATS && statsStore && req.method === 'GET' && requestUrl.pathname === '/stats/matches') {
+    const limit = parsePositiveInt(requestUrl.searchParams.get('limit'));
+    const before = requestUrl.searchParams.get('before') ?? undefined;
+    const profileId = requestUrl.searchParams.get('profileId') ?? undefined;
+    void statsStore
+      .listMatchHistory({ limit, before, profileId })
+      .then((payload) => {
+        setCorsHeaders();
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, ...payload }));
+      })
+      .catch((error) => {
+        console.warn('Failed to load match history', error);
+        setCorsHeaders();
+        res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Failed to load match history' }));
       });
     return;
   }
@@ -909,6 +950,29 @@ function collectLogs(
             void statsStore.recordMatchOutcomes({ matchId, outcomes }).catch((error) => {
               console.warn('Stats match outcome write failed; gameplay continues.', error);
             });
+            const [r1, r2, r3] = advanced.gameResults;
+            const bySeat = (seat: PlayerId) => roster?.get(seat)?.profileId ?? null;
+            void statsStore
+              .recordMatchHistory({
+                matchId,
+                playerAProfileId: bySeat('A'),
+                playerBProfileId: bySeat('B'),
+                playerCProfileId: bySeat('C'),
+                playerDProfileId: bySeat('D'),
+                r1NorthSouth: r1?.scores.NorthSouth ?? 0,
+                r1EastWest: r1?.scores.EastWest ?? 0,
+                r2NorthSouth: r2?.scores.NorthSouth ?? 0,
+                r2EastWest: r2?.scores.EastWest ?? 0,
+                r3NorthSouth: r3?.scores.NorthSouth ?? 0,
+                r3EastWest: r3?.scores.EastWest ?? 0,
+                honorA: classifyMatchHonorOutcome(advanced.playerGameWins.A, totalGames),
+                honorB: classifyMatchHonorOutcome(advanced.playerGameWins.B, totalGames),
+                honorC: classifyMatchHonorOutcome(advanced.playerGameWins.C, totalGames),
+                honorD: classifyMatchHonorOutcome(advanced.playerGameWins.D, totalGames),
+              })
+              .catch((error) => {
+                console.warn('Stats match history write failed; gameplay continues.', error);
+              });
           } catch (error) {
             console.warn('Stats match outcome write failed; gameplay continues.', error);
           }
@@ -1041,6 +1105,13 @@ function parseBooleanFlag(rawValue: string | undefined, fallback: boolean): bool
 function safeCsv(value: string): string {
   const escaped = value.replaceAll('"', '""');
   return `"${escaped}"`;
+}
+
+function parsePositiveInt(raw: string | null): number | undefined {
+  if (!raw) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
 }
 
 function createMatchFingerprint(roomId: string, state: GameState): string {

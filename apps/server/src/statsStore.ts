@@ -17,6 +17,25 @@ export interface RecordMatchOutcomesInput {
   outcomes: MatchOutcomeRecordInput[];
 }
 
+export interface RecordMatchHistoryInput {
+  matchId: string;
+  recordedAt?: string;
+  playerAProfileId: string | null;
+  playerBProfileId: string | null;
+  playerCProfileId: string | null;
+  playerDProfileId: string | null;
+  r1NorthSouth: number;
+  r1EastWest: number;
+  r2NorthSouth: number;
+  r2EastWest: number;
+  r3NorthSouth: number;
+  r3EastWest: number;
+  honorA: MatchHonorOutcome;
+  honorB: MatchHonorOutcome;
+  honorC: MatchHonorOutcome;
+  honorD: MatchHonorOutcome;
+}
+
 export interface PlayerStatsRow {
   profileId: string;
   displayName: string;
@@ -32,14 +51,35 @@ export interface PlayerDetails {
   displayName: string;
   aliases: Array<{ aliasRaw: string; aliasNormalized: string }>;
   recentOutcomes: Array<{ matchId: string; outcome: MatchHonorOutcome; recordedAt: string }>;
+  recentOutcomesNextCursor: string | null;
+}
+
+export interface MatchHistoryRow {
+  matchId: string;
+  recordedAt: string;
+  players: {
+    A: { profileId: string | null; displayName: string };
+    B: { profileId: string | null; displayName: string };
+    C: { profileId: string | null; displayName: string };
+    D: { profileId: string | null; displayName: string };
+  };
+  rounds: Array<{ round: 1 | 2 | 3; northSouth: number; eastWest: number }>;
+  honors: {
+    A: MatchHonorOutcome;
+    B: MatchHonorOutcome;
+    C: MatchHonorOutcome;
+    D: MatchHonorOutcome;
+  };
 }
 
 export interface PlayerStatsStore {
   runMigrations(): Promise<void>;
   resolveProfile(input: ResolveProfileInput): Promise<{ profileId: string; displayName: string }>;
   recordMatchOutcomes(input: RecordMatchOutcomesInput): Promise<void>;
+  recordMatchHistory(input: RecordMatchHistoryInput): Promise<void>;
   listPlayerStats(): Promise<PlayerStatsRow[]>;
-  getPlayerDetails(profileId: string): Promise<PlayerDetails | null>;
+  listMatchHistory(input?: { limit?: number; before?: string; profileId?: string }): Promise<{ rows: MatchHistoryRow[]; nextCursor: string | null }>;
+  getPlayerDetails(profileId: string, input?: { limit?: number; beforeRecordedAt?: string }): Promise<PlayerDetails | null>;
   mergeProfiles(sourceProfileId: string, targetProfileId: string): Promise<void>;
   addAlias(profileId: string, aliasRaw: string): Promise<void>;
   removeAlias(aliasRaw: string): Promise<void>;
@@ -79,9 +119,32 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
           recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(match_id, profile_id)
         )`,
+        `CREATE TABLE IF NOT EXISTS match_history (
+          match_id TEXT PRIMARY KEY,
+          recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          player_a_profile_id TEXT REFERENCES player_profiles(id) ON DELETE SET NULL,
+          player_b_profile_id TEXT REFERENCES player_profiles(id) ON DELETE SET NULL,
+          player_c_profile_id TEXT REFERENCES player_profiles(id) ON DELETE SET NULL,
+          player_d_profile_id TEXT REFERENCES player_profiles(id) ON DELETE SET NULL,
+          r1_ns INTEGER NOT NULL,
+          r1_ew INTEGER NOT NULL,
+          r2_ns INTEGER NOT NULL,
+          r2_ew INTEGER NOT NULL,
+          r3_ns INTEGER NOT NULL,
+          r3_ew INTEGER NOT NULL,
+          honor_a TEXT NOT NULL CHECK(honor_a IN ('Talson', 'Usha', 'Neutral')),
+          honor_b TEXT NOT NULL CHECK(honor_b IN ('Talson', 'Usha', 'Neutral')),
+          honor_c TEXT NOT NULL CHECK(honor_c IN ('Talson', 'Usha', 'Neutral')),
+          honor_d TEXT NOT NULL CHECK(honor_d IN ('Talson', 'Usha', 'Neutral'))
+        )`,
         'CREATE INDEX IF NOT EXISTS idx_aliases_profile_id ON player_aliases(profile_id)',
         'CREATE INDEX IF NOT EXISTS idx_match_outcomes_profile_id ON match_outcomes(profile_id)',
         'CREATE INDEX IF NOT EXISTS idx_match_outcomes_match_id ON match_outcomes(match_id)',
+        'CREATE INDEX IF NOT EXISTS idx_match_history_recorded_at ON match_history(recorded_at DESC)',
+        'CREATE INDEX IF NOT EXISTS idx_match_history_player_a ON match_history(player_a_profile_id)',
+        'CREATE INDEX IF NOT EXISTS idx_match_history_player_b ON match_history(player_b_profile_id)',
+        'CREATE INDEX IF NOT EXISTS idx_match_history_player_c ON match_history(player_c_profile_id)',
+        'CREATE INDEX IF NOT EXISTS idx_match_history_player_d ON match_history(player_d_profile_id)',
       ],
       'write',
     );
@@ -164,6 +227,35 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
     );
   };
 
+  const recordMatchHistory = async (input: RecordMatchHistoryInput) => {
+    await db.execute({
+      sql: `INSERT OR IGNORE INTO match_history(
+        match_id, recorded_at,
+        player_a_profile_id, player_b_profile_id, player_c_profile_id, player_d_profile_id,
+        r1_ns, r1_ew, r2_ns, r2_ew, r3_ns, r3_ew,
+        honor_a, honor_b, honor_c, honor_d
+      ) VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        input.matchId,
+        input.recordedAt ?? null,
+        input.playerAProfileId,
+        input.playerBProfileId,
+        input.playerCProfileId,
+        input.playerDProfileId,
+        input.r1NorthSouth,
+        input.r1EastWest,
+        input.r2NorthSouth,
+        input.r2EastWest,
+        input.r3NorthSouth,
+        input.r3EastWest,
+        input.honorA,
+        input.honorB,
+        input.honorC,
+        input.honorD,
+      ],
+    });
+  };
+
   const listPlayerStats = async () => {
     const result = await db.execute(`SELECT
       p.id AS profileId,
@@ -192,7 +284,96 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
     });
   };
 
-  const getPlayerDetails = async (profileId: string): Promise<PlayerDetails | null> => {
+  const listMatchHistory = async (input?: { limit?: number; before?: string; profileId?: string }) => {
+    const safeLimit = Math.min(Math.max(input?.limit ?? 25, 1), 100);
+    const args: Array<string | number> = [];
+    let where = '';
+    if (input?.profileId) {
+      where += ` WHERE (? IN (player_a_profile_id, player_b_profile_id, player_c_profile_id, player_d_profile_id))`;
+      args.push(input.profileId);
+    }
+    if (input?.before) {
+      where += where ? ' AND ' : ' WHERE ';
+      where += ' recorded_at < ?';
+      args.push(input.before);
+    }
+    args.push(safeLimit + 1);
+    const result = await db.execute({
+      sql: `SELECT
+        mh.match_id AS matchId,
+        mh.recorded_at AS recordedAt,
+        mh.player_a_profile_id AS playerAProfileId,
+        mh.player_b_profile_id AS playerBProfileId,
+        mh.player_c_profile_id AS playerCProfileId,
+        mh.player_d_profile_id AS playerDProfileId,
+        mh.r1_ns AS r1Ns,
+        mh.r1_ew AS r1Ew,
+        mh.r2_ns AS r2Ns,
+        mh.r2_ew AS r2Ew,
+        mh.r3_ns AS r3Ns,
+        mh.r3_ew AS r3Ew,
+        mh.honor_a AS honorA,
+        mh.honor_b AS honorB,
+        mh.honor_c AS honorC,
+        mh.honor_d AS honorD,
+        pa.display_name AS playerADisplayName,
+        pb.display_name AS playerBDisplayName,
+        pc.display_name AS playerCDisplayName,
+        pd.display_name AS playerDDisplayName
+      FROM match_history mh
+      LEFT JOIN player_profiles pa ON pa.id = mh.player_a_profile_id
+      LEFT JOIN player_profiles pb ON pb.id = mh.player_b_profile_id
+      LEFT JOIN player_profiles pc ON pc.id = mh.player_c_profile_id
+      LEFT JOIN player_profiles pd ON pd.id = mh.player_d_profile_id
+      ${where}
+      ORDER BY mh.recorded_at DESC
+      LIMIT ?`,
+      args,
+    });
+    const rows = result.rows.map((row) => {
+      const mapped = row as Record<string, unknown>;
+      return {
+        matchId: String(mapped.matchId),
+        recordedAt: String(mapped.recordedAt),
+        players: {
+          A: {
+            profileId: mapped.playerAProfileId ? String(mapped.playerAProfileId) : null,
+            displayName: String(mapped.playerADisplayName ?? mapped.playerAProfileId ?? 'A'),
+          },
+          B: {
+            profileId: mapped.playerBProfileId ? String(mapped.playerBProfileId) : null,
+            displayName: String(mapped.playerBDisplayName ?? mapped.playerBProfileId ?? 'B'),
+          },
+          C: {
+            profileId: mapped.playerCProfileId ? String(mapped.playerCProfileId) : null,
+            displayName: String(mapped.playerCDisplayName ?? mapped.playerCProfileId ?? 'C'),
+          },
+          D: {
+            profileId: mapped.playerDProfileId ? String(mapped.playerDProfileId) : null,
+            displayName: String(mapped.playerDDisplayName ?? mapped.playerDProfileId ?? 'D'),
+          },
+        },
+        rounds: [
+          { round: 1 as const, northSouth: asNumber(mapped.r1Ns), eastWest: asNumber(mapped.r1Ew) },
+          { round: 2 as const, northSouth: asNumber(mapped.r2Ns), eastWest: asNumber(mapped.r2Ew) },
+          { round: 3 as const, northSouth: asNumber(mapped.r3Ns), eastWest: asNumber(mapped.r3Ew) },
+        ],
+        honors: {
+          A: String(mapped.honorA) as MatchHonorOutcome,
+          B: String(mapped.honorB) as MatchHonorOutcome,
+          C: String(mapped.honorC) as MatchHonorOutcome,
+          D: String(mapped.honorD) as MatchHonorOutcome,
+        },
+      } satisfies MatchHistoryRow;
+    });
+    const sliced = rows.slice(0, safeLimit);
+    return {
+      rows: sliced,
+      nextCursor: rows.length > safeLimit ? sliced[sliced.length - 1]?.recordedAt ?? null : null,
+    };
+  };
+
+  const getPlayerDetails = async (profileId: string, input?: { limit?: number; beforeRecordedAt?: string }): Promise<PlayerDetails | null> => {
     const profileResult = await db.execute({
       sql: 'SELECT id AS profileId, display_name AS displayName FROM player_profiles WHERE id = ?',
       args: [profileId],
@@ -209,14 +390,25 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
       args: [profileId],
     });
 
+    const safeLimit = Math.min(Math.max(input?.limit ?? 30, 1), 100);
+    const outcomesArgs: Array<string | number> = [profileId];
+    const beforeClause = input?.beforeRecordedAt ? ' AND recorded_at < ?' : '';
+    if (input?.beforeRecordedAt) outcomesArgs.push(input.beforeRecordedAt);
+    outcomesArgs.push(safeLimit + 1);
     const outcomesResult = await db.execute({
       sql: `SELECT match_id AS matchId, outcome, recorded_at AS recordedAt
             FROM match_outcomes
             WHERE profile_id = ?
+            ${beforeClause}
             ORDER BY recorded_at DESC
-            LIMIT 30`,
-      args: [profileId],
+            LIMIT ?`,
+      args: outcomesArgs,
     });
+    const recentOutcomes = outcomesResult.rows.slice(0, safeLimit).map((row) => ({
+      matchId: String((row as Record<string, unknown>).matchId),
+      outcome: String((row as Record<string, unknown>).outcome) as MatchHonorOutcome,
+      recordedAt: String((row as Record<string, unknown>).recordedAt),
+    }));
 
     return {
       profileId: profile.profileId,
@@ -225,11 +417,11 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
         aliasRaw: String((row as Record<string, unknown>).aliasRaw),
         aliasNormalized: String((row as Record<string, unknown>).aliasNormalized),
       })),
-      recentOutcomes: outcomesResult.rows.map((row) => ({
-        matchId: String((row as Record<string, unknown>).matchId),
-        outcome: String((row as Record<string, unknown>).outcome) as MatchHonorOutcome,
-        recordedAt: String((row as Record<string, unknown>).recordedAt),
-      })),
+      recentOutcomes,
+      recentOutcomesNextCursor:
+        outcomesResult.rows.length > safeLimit
+          ? String((recentOutcomes[recentOutcomes.length - 1] as { recordedAt: string }).recordedAt)
+          : null,
     };
   };
 
@@ -287,7 +479,9 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
     runMigrations,
     resolveProfile,
     recordMatchOutcomes,
+    recordMatchHistory,
     listPlayerStats,
+    listMatchHistory,
     getPlayerDetails,
     mergeProfiles,
     addAlias,
