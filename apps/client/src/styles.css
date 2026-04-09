@@ -1986,12 +1986,32 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
+.stats-date-toggle {
+  background: rgba(15, 34, 28, 0.72);
+  color: rgba(226, 232, 240, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.7rem;
+  padding: 0.35rem 0.6rem;
+  box-shadow: none;
+}
+
+.stats-date-toggle:hover:not(:disabled) {
+  transform: none;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.2);
+  filter: brightness(1.06);
+}
+
+.honor-chip-list {
+  white-space: nowrap;
+}
+
 .honor-chip {
   display: inline-block;
-  margin: 0.1rem 0.3rem 0.1rem 0;
-  padding: 0.15rem 0.45rem;
+  margin: 0.1rem 0.16rem 0.1rem 0;
+  padding: 0.12rem 0.38rem;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
+  line-height: 1.3;
   border: 1px solid transparent;
 }
 

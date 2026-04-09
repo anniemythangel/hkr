@@ -76,14 +76,14 @@ describe('StatsPage', () => {
               recordedAt: '2026-01-01T00:00:00.000Z',
               players: {
                 A: { profileId: 'p1', displayName: 'Avi' },
-                B: { profileId: 'p2', displayName: 'B' },
-                C: { profileId: 'p3', displayName: 'C' },
-                D: { profileId: 'p4', displayName: 'D' },
+                B: { profileId: 'p2', displayName: 'Beni' },
+                C: { profileId: 'p3', displayName: 'Chaim' },
+                D: { profileId: 'p4', displayName: 'Dov' },
               },
               rounds: [
                 { round: 1, northSouth: 16, eastWest: 12 },
                 { round: 2, northSouth: 10, eastWest: 16 },
-                { round: 3, northSouth: 16, eastWest: 8 },
+                { round: 3, northSouth: 12, eastWest: 12 },
               ],
               honors: { A: 'Talson', B: 'Neutral', C: 'Usha', D: 'Neutral' },
             },
@@ -103,14 +103,20 @@ describe('StatsPage', () => {
 
     expect(container.textContent).toContain('A: Talson')
     expect(container.textContent).toContain('C: Usha')
+    expect(container.textContent).toContain('B: Benonimi')
+    expect(container.textContent).not.toContain('Neutral')
 
     const firstButton = container.querySelector('table button') as HTMLButtonElement
+    expect(firstButton.classList.contains('stats-date-toggle')).toBe(true)
     await act(async () => {
       firstButton.click()
     })
 
     expect(container.textContent).toContain('Per-round breakdown')
-    expect(container.textContent).toContain('Round 1: 16-12')
+    expect(container.textContent).toContain('Round 1: 16-12 (Avi + Beni won)')
+    expect(container.textContent).toContain('Round 2: 10-16 (Beni + Dov won)')
+    expect(container.textContent).toContain('Round 3: 12-12 (Tie between Avi + Dov and Beni + Chaim)')
+    expect(container.querySelector('.honor-chip-list')).toBeTruthy()
   })
 
   it('loads more outcomes for selected player', async () => {
@@ -164,5 +170,6 @@ describe('StatsPage', () => {
 
     expect(container.textContent).toContain('m2')
     expect(container.textContent).toContain('m1')
+    expect(container.textContent).toContain('Benonimi')
   })
 })

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { GAME_ROTATION } from '@hooker/shared'
 
 type PlayerStats = {
   profileId: string
@@ -34,6 +35,11 @@ type MatchHistoryRow = {
 }
 
 const SERVER = resolveServerBase()
+const HONOR_LABELS: Record<MatchHonorOutcome, string> = {
+  Talson: 'Talson',
+  Usha: 'Usha',
+  Neutral: 'Benonimi',
+}
 
 function resolveServerBase() {
   const configured = import.meta.env.VITE_WS_URL?.trim()
@@ -133,6 +139,20 @@ export default function StatsPage() {
   }
 
   const formatRound = (round: { northSouth: number; eastWest: number }) => `${round.northSouth}-${round.eastWest}`
+  const formatHonorLabel = (outcome: MatchHonorOutcome) => HONOR_LABELS[outcome]
+
+  const formatRoundBreakdown = (row: MatchHistoryRow, round: MatchHistoryRow['rounds'][number]) => {
+    const rotation = GAME_ROTATION[round.round - 1]
+    const northSouthNames = rotation.teams.NorthSouth.map((seat) => row.players[seat].displayName).join(' + ')
+    const eastWestNames = rotation.teams.EastWest.map((seat) => row.players[seat].displayName).join(' + ')
+    const winnerText =
+      round.northSouth === round.eastWest
+        ? `Tie between ${northSouthNames} and ${eastWestNames}`
+        : round.northSouth > round.eastWest
+          ? `${northSouthNames} won`
+          : `${eastWestNames} won`
+    return `Round ${round.round}: ${round.northSouth}-${round.eastWest} (${winnerText})`
+  }
 
   const loadMoreHistory = async () => {
     if (!historyCursor) return
@@ -177,7 +197,7 @@ export default function StatsPage() {
                     <th>Player</th>
                     <th>Talson</th>
                     <th>Usha</th>
-                    <th>Neutral</th>
+                    <th>Benonimi</th>
                     <th>Matches</th>
                     <th>Last played</th>
                   </tr>
@@ -206,7 +226,7 @@ export default function StatsPage() {
             <ul>
               {selected.recentOutcomes.map((outcome) => (
                 <li key={`${outcome.matchId}-${outcome.recordedAt}`}>
-                  {outcome.matchId} · {outcome.outcome} · {outcome.recordedAt}
+                  {outcome.matchId} · {formatHonorLabel(outcome.outcome)} · {outcome.recordedAt}
                 </li>
               ))}
             </ul>
@@ -249,6 +269,7 @@ export default function StatsPage() {
                         <td>
                           <button
                             type="button"
+                            className="stats-date-toggle"
                             aria-expanded={expanded}
                             onClick={() => setExpandedMatchId(expanded ? null : row.matchId)}
                           >
@@ -262,10 +283,10 @@ export default function StatsPage() {
                         <td>{formatRound(row.rounds[0])}</td>
                         <td>{formatRound(row.rounds[1])}</td>
                         <td>{formatRound(row.rounds[2])}</td>
-                        <td>
+                        <td className="honor-chip-list">
                           {(['A', 'B', 'C', 'D'] as const).map((seat) => (
                             <span key={`${row.matchId}-${seat}`} className={`honor-chip honor-${row.honors[seat].toLowerCase()}`}>
-                              {seat}: {row.honors[seat]}
+                              {seat}: {formatHonorLabel(row.honors[seat])}
                             </span>
                           ))}
                         </td>
@@ -276,10 +297,9 @@ export default function StatsPage() {
                             <strong>Per-round breakdown:</strong>
                             <ul>
                               {row.rounds.map((round) => {
-                                const winner = round.northSouth === round.eastWest ? 'Tie' : round.northSouth > round.eastWest ? 'North/South' : 'East/West'
                                 return (
                                   <li key={`${row.matchId}-${round.round}`}>
-                                    Round {round.round}: {round.northSouth}-{round.eastWest} ({winner})
+                                    {formatRoundBreakdown(row, round)}
                                   </li>
                                 )
                               })}

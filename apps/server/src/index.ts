@@ -21,7 +21,7 @@ import {
 } from '@hooker/shared';
 import type { HandScoreSummary, RoomLobbyState } from '@hooker/shared';
 import type { GameState } from '@hooker/engine';
-import { createStatsStore, type PlayerStatsStore } from './statsStore.js';
+import { createStatsStore, hasMixedOpposingHonors, type PlayerStatsStore } from './statsStore.js';
 
 const port = Number(process.env.PORT ?? 3001);
 const ENABLE_PLAYER_STATS = parseBooleanFlag(process.env.ENABLE_PLAYER_STATS, false);
@@ -939,12 +939,22 @@ function collectLogs(
         setTimeout(() => {
           try {
             const roster = roomRosters.get(roomId);
+            const honorsBySeat = {
+              A: classifyMatchHonorOutcome(advanced.playerGameWins.A, totalGames),
+              B: classifyMatchHonorOutcome(advanced.playerGameWins.B, totalGames),
+              C: classifyMatchHonorOutcome(advanced.playerGameWins.C, totalGames),
+              D: classifyMatchHonorOutcome(advanced.playerGameWins.D, totalGames),
+            } as const;
+            if (hasMixedOpposingHonors(honorsBySeat)) {
+              console.warn(`Skipping stats persistence for ${matchId}: mixed Talson/Usha honors are not allowed.`);
+              return;
+            }
             const outcomes = PLAYERS.map((player) => {
               const profileId = roster?.get(player)?.profileId;
               if (!profileId) return null;
               return {
                 profileId,
-                outcome: classifyMatchHonorOutcome(advanced.playerGameWins[player], totalGames),
+                outcome: honorsBySeat[player],
               };
             }).filter((item): item is { profileId: string; outcome: 'Talson' | 'Usha' | 'Neutral' } => Boolean(item));
             void statsStore.recordMatchOutcomes({ matchId, outcomes }).catch((error) => {
@@ -965,10 +975,10 @@ function collectLogs(
                 r2EastWest: r2?.scores.EastWest ?? 0,
                 r3NorthSouth: r3?.scores.NorthSouth ?? 0,
                 r3EastWest: r3?.scores.EastWest ?? 0,
-                honorA: classifyMatchHonorOutcome(advanced.playerGameWins.A, totalGames),
-                honorB: classifyMatchHonorOutcome(advanced.playerGameWins.B, totalGames),
-                honorC: classifyMatchHonorOutcome(advanced.playerGameWins.C, totalGames),
-                honorD: classifyMatchHonorOutcome(advanced.playerGameWins.D, totalGames),
+                honorA: honorsBySeat.A,
+                honorB: honorsBySeat.B,
+                honorC: honorsBySeat.C,
+                honorD: honorsBySeat.D,
               })
               .catch((error) => {
                 console.warn('Stats match history write failed; gameplay continues.', error);

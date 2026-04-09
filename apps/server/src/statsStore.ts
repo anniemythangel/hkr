@@ -72,6 +72,8 @@ export interface MatchHistoryRow {
   };
 }
 
+type SeatHonors = Record<'A' | 'B' | 'C' | 'D', MatchHonorOutcome>;
+
 export interface PlayerStatsStore {
   runMigrations(): Promise<void>;
   resolveProfile(input: ResolveProfileInput): Promise<{ profileId: string; displayName: string }>;
@@ -84,6 +86,8 @@ export interface PlayerStatsStore {
   addAlias(profileId: string, aliasRaw: string): Promise<void>;
   removeAlias(aliasRaw: string): Promise<void>;
   renameProfile(profileId: string, displayName: string): Promise<void>;
+  listInvalidMixedHonorMatches(): Promise<Array<{ matchId: string; recordedAt: string }>>;
+  normalizeInvalidMixedHonorMatches(): Promise<number>;
 }
 
 export function normalizeAlias(aliasRaw: string): string {
@@ -93,6 +97,34 @@ export function normalizeAlias(aliasRaw: string): string {
 function asNumber(value: unknown): number {
   if (typeof value === 'number') return value;
   return Number(value ?? 0);
+}
+
+function toSafeHonorOutcome(value: unknown): MatchHonorOutcome {
+  const text = String(value);
+  if (text === 'Talson' || text === 'Usha' || text === 'Neutral') {
+    return text;
+  }
+  return 'Neutral';
+}
+
+export function hasMixedOpposingHonors(honors: SeatHonors): boolean {
+  const values = Object.values(honors);
+  return values.includes('Talson') && values.includes('Usha');
+}
+
+export function sanitizeSeatHonors(
+  honors: SeatHonors,
+  options?: { matchId?: string; logInvalid?: boolean },
+): SeatHonors {
+  if (!hasMixedOpposingHonors(honors)) {
+    return honors;
+  }
+  if (options?.logInvalid) {
+    console.warn(
+      `Invalid mixed honor state in match ${options.matchId ?? '(unknown)'}; mapping honors to Neutral for UI safety.`,
+    );
+  }
+  return { A: 'Neutral', B: 'Neutral', C: 'Neutral', D: 'Neutral' };
 }
 
 export function createStatsStore(config: { url: string; authToken?: string }): PlayerStatsStore {
@@ -228,6 +260,15 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
   };
 
   const recordMatchHistory = async (input: RecordMatchHistoryInput) => {
+    const honors = {
+      A: input.honorA,
+      B: input.honorB,
+      C: input.honorC,
+      D: input.honorD,
+    } satisfies SeatHonors;
+    if (hasMixedOpposingHonors(honors)) {
+      throw new Error(`Invalid match history honors for ${input.matchId}: cannot mix Talson and Usha.`);
+    }
     await db.execute({
       sql: `INSERT OR IGNORE INTO match_history(
         match_id, recorded_at,
@@ -332,6 +373,15 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
     });
     const rows = result.rows.map((row) => {
       const mapped = row as Record<string, unknown>;
+      const safeHonors = sanitizeSeatHonors(
+        {
+          A: toSafeHonorOutcome(mapped.honorA),
+          B: toSafeHonorOutcome(mapped.honorB),
+          C: toSafeHonorOutcome(mapped.honorC),
+          D: toSafeHonorOutcome(mapped.honorD),
+        },
+        { matchId: String(mapped.matchId), logInvalid: true },
+      );
       return {
         matchId: String(mapped.matchId),
         recordedAt: String(mapped.recordedAt),
@@ -359,10 +409,10 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
           { round: 3 as const, northSouth: asNumber(mapped.r3Ns), eastWest: asNumber(mapped.r3Ew) },
         ],
         honors: {
-          A: String(mapped.honorA) as MatchHonorOutcome,
-          B: String(mapped.honorB) as MatchHonorOutcome,
-          C: String(mapped.honorC) as MatchHonorOutcome,
-          D: String(mapped.honorD) as MatchHonorOutcome,
+          A: safeHonors.A,
+          B: safeHonors.B,
+          C: safeHonors.C,
+          D: safeHonors.D,
         },
       } satisfies MatchHistoryRow;
     });
@@ -475,6 +525,32 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
     });
   };
 
+  const listInvalidMixedHonorMatches = async () => {
+    const result = await db.execute(`SELECT match_id AS matchId, recorded_at AS recordedAt
+      FROM match_history
+      WHERE (
+        honor_a = 'Talson' OR honor_b = 'Talson' OR honor_c = 'Talson' OR honor_d = 'Talson'
+      ) AND (
+        honor_a = 'Usha' OR honor_b = 'Usha' OR honor_c = 'Usha' OR honor_d = 'Usha'
+      )
+      ORDER BY recorded_at DESC`);
+    return result.rows.map((row) => ({
+      matchId: String((row as Record<string, unknown>).matchId),
+      recordedAt: String((row as Record<string, unknown>).recordedAt),
+    }));
+  };
+
+  const normalizeInvalidMixedHonorMatches = async () => {
+    const result = await db.execute(`UPDATE match_history
+      SET honor_a = 'Neutral', honor_b = 'Neutral', honor_c = 'Neutral', honor_d = 'Neutral'
+      WHERE (
+        honor_a = 'Talson' OR honor_b = 'Talson' OR honor_c = 'Talson' OR honor_d = 'Talson'
+      ) AND (
+        honor_a = 'Usha' OR honor_b = 'Usha' OR honor_c = 'Usha' OR honor_d = 'Usha'
+      )`);
+    return Number(result.rowsAffected ?? 0);
+  };
+
   return {
     runMigrations,
     resolveProfile,
@@ -487,5 +563,7 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
     addAlias,
     removeAlias,
     renameProfile,
+    listInvalidMixedHonorMatches,
+    normalizeInvalidMixedHonorMatches,
   };
 }
