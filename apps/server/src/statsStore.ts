@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createClient, type Client } from '@libsql/client';
 import type { MatchHonorOutcome } from '@hooker/shared';
+import { assertAllowedPlayerName, normalizePlayerName } from './playerNamePolicy.js';
 
 export interface ResolveProfileInput {
   profileId?: string;
@@ -91,7 +92,7 @@ export interface PlayerStatsStore {
 }
 
 export function normalizeAlias(aliasRaw: string): string {
-  return aliasRaw.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
+  return normalizePlayerName(aliasRaw);
 }
 
 function asNumber(value: unknown): number {
@@ -183,6 +184,7 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
   };
 
   const resolveProfile = async ({ profileId, aliasRaw }: ResolveProfileInput) => {
+    assertAllowedPlayerName(aliasRaw);
     const aliasNormalized = normalizeAlias(aliasRaw);
     const now = new Date().toISOString();
 
