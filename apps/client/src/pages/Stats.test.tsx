@@ -172,4 +172,34 @@ describe('StatsPage', () => {
     expect(container.textContent).toContain('m1')
     expect(container.textContent).toContain('Benonimi')
   })
+
+  it('renders Null usha when all usha counts are zero and tie labels for shared leaders', async () => {
+    mockFetchSequence([
+      { ok: true, body: { stats: { available: true } } },
+      {
+        ok: true,
+        body: {
+          players: [
+            { profileId: 'p1', displayName: 'Avi', talson: 3, usha: 0, neutral: 0, matches: 4, lastPlayed: null },
+            { profileId: 'p2', displayName: 'Beni', talson: 3, usha: 0, neutral: 1, matches: 4, lastPlayed: null },
+            { profileId: 'p3', displayName: 'Chaim', talson: 1, usha: 0, neutral: 3, matches: 2, lastPlayed: null },
+          ],
+        },
+      },
+      { ok: true, body: { rows: [], nextCursor: null } },
+    ])
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(<StatsPage />)
+    })
+
+    expect(container.textContent).toContain('Leader 🏆: Tie: Avi and Beni')
+    expect(container.textContent).toContain('Talson 😎: Tie: Avi and Beni')
+    expect(container.textContent).toContain('Matches ♞: Tie: Avi and Beni')
+    expect(container.textContent).toContain('Usha 💩: Null')
+  })
 })
