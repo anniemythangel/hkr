@@ -198,10 +198,10 @@ describe('StatsPage', () => {
       root.render(<StatsPage />)
     })
 
-    expect(container.textContent).toContain('Talson 🏆:')
+    expect(container.textContent).toContain('👏🏼👑 Talson 👑👏🏼:')
     expect(container.textContent).toContain('Azrikam')
     expect(container.textContent).toContain('Tie: Azrikam and Beni')
-    expect(container.textContent).toContain('Usha 💩: Null')
+    expect(container.textContent).toContain('😂🫵 Usha 🫵😂: Null')
   })
 
   it('renders identity chips and keeps emoji/color deterministic across table and history', async () => {

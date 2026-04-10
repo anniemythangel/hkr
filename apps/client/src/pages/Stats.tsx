@@ -230,21 +230,21 @@ export default function StatsPage() {
         {status === 'ready' && players.length > 0 ? (
           <>
             <p className="stats-leaders" aria-label="Leaders summary">
-              <span className="stats-leader-chip stats-leader-chip--trophy">
-                <span className="stats-leader-label">Talson 🏆:</span>
-                <span className="stats-leader-value">
+              <span className="stats-leader-chip">
+                <span className="stats-leader-label">👏🏼👑 Talson 👑👏🏼:</span>
+                <span className="stats-leader-value stats-leader-value--trophy">
                   <PlayerIdentityChip displayName={leaders.talson ?? '-'} className="stats-leader-player" />
                 </span>
               </span>
-              <span className="stats-leader-chip stats-leader-chip--usha">
-                <span className="stats-leader-label">Usha 💩:</span>
-                <span className="stats-leader-value">
+              <span className="stats-leader-chip">
+                <span className="stats-leader-label">😂🫵 Usha 🫵😂:</span>
+                <span className="stats-leader-value stats-leader-value--usha">
                   <PlayerIdentityChip displayName={leaders.usha ?? '-'} className="stats-leader-player" />
                 </span>
               </span>
-              <span className="stats-leader-chip stats-leader-chip--matches">
-                <span className="stats-leader-label">Matches ♞:</span>
-                <span className="stats-leader-value">
+              <span className="stats-leader-chip">
+                <span className="stats-leader-label">🎮 Matches 🎮:</span>
+                <span className="stats-leader-value stats-leader-value--matches">
                   <PlayerIdentityChip displayName={leaders.matches ?? '-'} className="stats-leader-player" />
                 </span>
               </span>
