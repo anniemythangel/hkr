@@ -37,6 +37,26 @@ export interface RecordMatchHistoryInput {
   honorD: MatchHonorOutcome;
 }
 
+export interface RecordManualMatchAtomicInput {
+  matchId: string;
+  recordedAt: string;
+  A: string;
+  B: string;
+  C: string;
+  D: string;
+  r1NorthSouth: number;
+  r1EastWest: number;
+  r2NorthSouth: number;
+  r2EastWest: number;
+  r3NorthSouth: number;
+  r3EastWest: number;
+  honorA: MatchHonorOutcome;
+  honorB: MatchHonorOutcome;
+  honorC: MatchHonorOutcome;
+  honorD: MatchHonorOutcome;
+  failAfterHistoryInsert?: boolean;
+}
+
 export interface PlayerStatsRow {
   profileId: string;
   displayName: string;
@@ -80,6 +100,7 @@ export interface PlayerStatsStore {
   resolveProfile(input: ResolveProfileInput): Promise<{ profileId: string; displayName: string }>;
   recordMatchOutcomes(input: RecordMatchOutcomesInput): Promise<void>;
   recordMatchHistory(input: RecordMatchHistoryInput): Promise<void>;
+  recordManualMatchAtomic(input: RecordManualMatchAtomicInput): Promise<string>;
   listPlayerStats(): Promise<PlayerStatsRow[]>;
   listMatchHistory(input?: { limit?: number; before?: string; profileId?: string }): Promise<{ rows: MatchHistoryRow[]; nextCursor: string | null }>;
   getPlayerDetails(profileId: string, input?: { limit?: number; beforeRecordedAt?: string }): Promise<PlayerDetails | null>;
@@ -272,7 +293,7 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
       throw new Error(`Invalid match history honors for ${input.matchId}: cannot mix Talson and Usha.`);
     }
     await db.execute({
-      sql: `INSERT OR IGNORE INTO match_history(
+      sql: `INSERT INTO match_history(
         match_id, recorded_at,
         player_a_profile_id, player_b_profile_id, player_c_profile_id, player_d_profile_id,
         r1_ns, r1_ew, r2_ns, r2_ew, r3_ns, r3_ew,
@@ -297,6 +318,55 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
         input.honorD,
       ],
     });
+  };
+
+  const recordManualMatchAtomic = async (input: RecordManualMatchAtomicInput) => {
+    await db.execute('BEGIN');
+    try {
+      const a = await resolveProfile({ aliasRaw: input.A });
+      const b = await resolveProfile({ aliasRaw: input.B });
+      const c = await resolveProfile({ aliasRaw: input.C });
+      const d = await resolveProfile({ aliasRaw: input.D });
+
+      await recordMatchHistory({
+        matchId: input.matchId,
+        recordedAt: input.recordedAt,
+        playerAProfileId: a.profileId,
+        playerBProfileId: b.profileId,
+        playerCProfileId: c.profileId,
+        playerDProfileId: d.profileId,
+        r1NorthSouth: input.r1NorthSouth,
+        r1EastWest: input.r1EastWest,
+        r2NorthSouth: input.r2NorthSouth,
+        r2EastWest: input.r2EastWest,
+        r3NorthSouth: input.r3NorthSouth,
+        r3EastWest: input.r3EastWest,
+        honorA: input.honorA,
+        honorB: input.honorB,
+        honorC: input.honorC,
+        honorD: input.honorD,
+      });
+
+      if (input.failAfterHistoryInsert) {
+        throw new Error('Forced atomic failure');
+      }
+
+      await recordMatchOutcomes({
+        matchId: input.matchId,
+        outcomes: [
+          { profileId: a.profileId, outcome: input.honorA },
+          { profileId: b.profileId, outcome: input.honorB },
+          { profileId: c.profileId, outcome: input.honorC },
+          { profileId: d.profileId, outcome: input.honorD },
+        ],
+      });
+
+      await db.execute('COMMIT');
+      return input.matchId;
+    } catch (error) {
+      await db.execute('ROLLBACK');
+      throw error;
+    }
   };
 
   const listPlayerStats = async () => {
@@ -558,6 +628,7 @@ export function createStatsStore(config: { url: string; authToken?: string }): P
     resolveProfile,
     recordMatchOutcomes,
     recordMatchHistory,
+    recordManualMatchAtomic,
     listPlayerStats,
     listMatchHistory,
     getPlayerDetails,

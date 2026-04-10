@@ -190,4 +190,63 @@ describe('stats store', () => {
     expect(rows.rows[0]?.honors).toEqual({ A: 'Neutral', B: 'Neutral', C: 'Neutral', D: 'Neutral' });
     expect(warnSpy).toHaveBeenCalled();
   });
+
+  it('records manual match atomically across history and outcomes', async () => {
+    const { store } = await createTestStore();
+    const matchId = await store.recordManualMatchAtomic({
+      matchId: 'manual-atomic-1',
+      recordedAt: '2026-02-01T00:00:00.000Z',
+      A: 'Avi',
+      B: 'Beni',
+      C: 'Chaim',
+      D: 'Dov',
+      r1NorthSouth: 16,
+      r1EastWest: 10,
+      r2NorthSouth: 12,
+      r2EastWest: 16,
+      r3NorthSouth: 16,
+      r3EastWest: 9,
+      honorA: 'Talson',
+      honorB: 'Neutral',
+      honorC: 'Neutral',
+      honorD: 'Talson',
+    });
+
+    expect(matchId).toBe('manual-atomic-1');
+    const history = await store.listMatchHistory({ limit: 5 });
+    expect(history.rows.some((row) => row.matchId === 'manual-atomic-1')).toBe(true);
+    const players = await store.listPlayerStats();
+    expect(players.find((row) => row.displayName === 'Avi')?.matches).toBe(1);
+    expect(players.find((row) => row.displayName === 'Dov')?.matches).toBe(1);
+  });
+
+  it('rolls back manual match when a write fails mid-transaction', async () => {
+    const { store } = await createTestStore();
+    await expect(
+      store.recordManualMatchAtomic({
+        matchId: 'manual-atomic-fail',
+        recordedAt: '2026-02-02T00:00:00.000Z',
+        A: 'Avi',
+        B: 'Beni',
+        C: 'Chaim',
+        D: 'Dov',
+        r1NorthSouth: 16,
+        r1EastWest: 10,
+        r2NorthSouth: 12,
+        r2EastWest: 16,
+        r3NorthSouth: 16,
+        r3EastWest: 9,
+        honorA: 'Talson',
+        honorB: 'Neutral',
+        honorC: 'Neutral',
+        honorD: 'Talson',
+        failAfterHistoryInsert: true,
+      }),
+    ).rejects.toThrow('Forced atomic failure');
+
+    const history = await store.listMatchHistory({ limit: 20 });
+    expect(history.rows.some((row) => row.matchId === 'manual-atomic-fail')).toBe(false);
+    const players = await store.listPlayerStats();
+    expect(players.some((row) => row.displayName === 'Avi')).toBe(false);
+  });
 });
