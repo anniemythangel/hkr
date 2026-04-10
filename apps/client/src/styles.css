@@ -2028,11 +2028,6 @@ button:disabled {
   background: rgba(131, 24, 67, 0.28);
 }
 
-.stats-leader-chip--talson {
-  border-color: rgba(125, 211, 252, 0.4);
-  background: rgba(12, 74, 110, 0.28);
-}
-
 .stats-leader-chip--matches {
   border-color: rgba(203, 213, 225, 0.38);
   background: rgba(51, 65, 85, 0.34);
@@ -2063,6 +2058,11 @@ button:disabled {
 
 .stats-leader-player {
   max-width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-weight: 700;
 }
 
 .player-identity-0 { --identity-bg: #1e3a8a; --identity-fg: #eff6ff; --identity-border: #93c5fd; }
