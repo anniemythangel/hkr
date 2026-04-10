@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { GAME_ROTATION } from '@hooker/shared'
+import { getPlayerColorClass, getPlayerEmoji, getPlayerIdentityKey } from '../utils/playerIdentity'
 
 type PlayerStats = {
   profileId: string
@@ -19,6 +20,24 @@ type PlayerDetails = {
   aliases: Array<{ aliasRaw: string; aliasNormalized: string }>
   recentOutcomes: Array<{ matchId: string; outcome: MatchHonorOutcome; recordedAt: string }>
   recentOutcomesNextCursor: string | null
+}
+
+
+
+type PlayerIdentityProps = {
+  profileId?: string | null
+  displayName: string
+  className?: string
+}
+
+function PlayerIdentityChip({ profileId, displayName, className }: PlayerIdentityProps) {
+  const key = getPlayerIdentityKey(profileId, displayName)
+  return (
+    <span className={[`player-identity-chip ${getPlayerColorClass(key)}`, className].filter(Boolean).join(' ')}>
+      <span aria-hidden="true" className="player-identity-emoji">{getPlayerEmoji(key)}</span>
+      <span>{displayName}</span>
+    </span>
+  )
 }
 
 type MatchHistoryRow = {
@@ -130,7 +149,6 @@ export default function StatsPage() {
     }
 
     return {
-      leader: formatLeaderLabel('talson'),
       usha: formatLeaderLabel('usha', { nullWhenAllZero: true }),
       talson: formatLeaderLabel('talson'),
       matches: formatLeaderLabel('matches'),
@@ -213,20 +231,28 @@ export default function StatsPage() {
           <>
             <p className="stats-leaders" aria-label="Leaders summary">
               <span className="stats-leader-chip stats-leader-chip--trophy">
-                <span className="stats-leader-label">Leader 🏆:</span>
-                <span className="stats-leader-value">{leaders.talson?.displayName ?? '-'}</span>
+                <span className="stats-leader-label">Talson 🏆:</span>
+                <span className="stats-leader-value">
+                  <PlayerIdentityChip displayName={leaders.talson ?? '-'} className="stats-leader-player" />
+                </span>
               </span>
               <span className="stats-leader-chip stats-leader-chip--usha">
                 <span className="stats-leader-label">Usha 💩:</span>
-                <span className="stats-leader-value">{leaders.usha?.displayName ?? '-'}</span>
+                <span className="stats-leader-value">
+                  <PlayerIdentityChip displayName={leaders.usha ?? '-'} className="stats-leader-player" />
+                </span>
               </span>
               <span className="stats-leader-chip stats-leader-chip--talson">
                 <span className="stats-leader-label">Talson 😎:</span>
-                <span className="stats-leader-value">{leaders.talson?.displayName ?? '-'}</span>
+                <span className="stats-leader-value">
+                  <PlayerIdentityChip displayName={leaders.talson ?? '-'} className="stats-leader-player" />
+                </span>
               </span>
               <span className="stats-leader-chip stats-leader-chip--matches">
                 <span className="stats-leader-label">Matches ♞:</span>
-                <span className="stats-leader-value">{leaders.matches?.displayName ?? '-'}</span>
+                <span className="stats-leader-value">
+                  <PlayerIdentityChip displayName={leaders.matches ?? '-'} className="stats-leader-player" />
+                </span>
               </span>
             </p>
             <div className="stats-table-wrap">
@@ -244,7 +270,7 @@ export default function StatsPage() {
                 <tbody>
                   {players.map((player) => (
                     <tr key={player.profileId} onClick={() => void loadPlayerDetails(player.profileId)}>
-                      <td>{player.displayName}</td>
+                      <td><PlayerIdentityChip profileId={player.profileId} displayName={player.displayName} /></td>
                       <td>{player.talson}</td>
                       <td>{player.usha}</td>
                       <td>{player.neutral}</td>
@@ -315,10 +341,10 @@ export default function StatsPage() {
                             {new Date(row.recordedAt).toLocaleString()}
                           </button>
                         </td>
-                        <td>{row.players.A.displayName}</td>
-                        <td>{row.players.B.displayName}</td>
-                        <td>{row.players.C.displayName}</td>
-                        <td>{row.players.D.displayName}</td>
+                        <td><PlayerIdentityChip profileId={row.players.A.profileId} displayName={row.players.A.displayName} /></td>
+                        <td><PlayerIdentityChip profileId={row.players.B.profileId} displayName={row.players.B.displayName} /></td>
+                        <td><PlayerIdentityChip profileId={row.players.C.profileId} displayName={row.players.C.displayName} /></td>
+                        <td><PlayerIdentityChip profileId={row.players.D.profileId} displayName={row.players.D.displayName} /></td>
                         <td>{formatRound(row.rounds[0])}</td>
                         <td>{formatRound(row.rounds[1])}</td>
                         <td>{formatRound(row.rounds[2])}</td>
