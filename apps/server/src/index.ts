@@ -1,5 +1,5 @@
 import { createServer } from 'http';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { Server } from 'socket.io';
 import { z } from 'zod';
 import {
@@ -22,6 +22,7 @@ import {
 import type { HandScoreSummary, RoomLobbyState } from '@hooker/shared';
 import type { GameState } from '@hooker/engine';
 import { createStatsStore, hasMixedOpposingHonors, type PlayerStatsStore } from './statsStore.js';
+import { getBlacklistedNameFieldErrors, getJoinNameValidationError } from './playerNameValidation.js';
 
 const port = Number(process.env.PORT ?? 3001);
 const ENABLE_PLAYER_STATS = parseBooleanFlag(process.env.ENABLE_PLAYER_STATS, false);
@@ -251,6 +252,91 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
+  if (ENABLE_PLAYER_STATS && statsStore && req.method === 'POST' && requestUrl.pathname === '/stats/manual/matches') {
+    const chunks: Uint8Array[] = [];
+    req.on('data', (chunk) => {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    });
+    req.on('error', () => {
+      setCorsHeaders();
+      res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Failed to read request body' }));
+    });
+    req.on('end', () => {
+      try {
+        const rawBody = Buffer.concat(chunks).toString('utf8');
+        const parsedBody = rawBody.trim().length === 0 ? {} : JSON.parse(rawBody);
+        const parsed = manualMatchInsertSchema.safeParse(parsedBody);
+        if (!parsed.success) {
+          setCorsHeaders();
+          res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Invalid payload', details: parsed.error.flatten() }));
+          return;
+        }
+        const blacklistErrors = getBlacklistedNameFieldErrors({
+          A: parsed.data.A,
+          B: parsed.data.B,
+          C: parsed.data.C,
+          D: parsed.data.D,
+        });
+        if (Object.keys(blacklistErrors).length > 0) {
+          setCorsHeaders();
+          res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Validation failed', fieldErrors: blacklistErrors }));
+          return;
+        }
+        void Promise.all([
+          statsStore.resolveProfile({ aliasRaw: parsed.data.A }),
+          statsStore.resolveProfile({ aliasRaw: parsed.data.B }),
+          statsStore.resolveProfile({ aliasRaw: parsed.data.C }),
+          statsStore.resolveProfile({ aliasRaw: parsed.data.D }),
+        ])
+          .then(([a, b, c, d]) => {
+            const matchId = parsed.data.matchId ?? `manual-${randomUUID()}`;
+            return Promise.all([
+              statsStore.recordMatchOutcomes({
+                matchId,
+                outcomes: [
+                  { profileId: a.profileId, outcome: parsed.data.honorA },
+                  { profileId: b.profileId, outcome: parsed.data.honorB },
+                  { profileId: c.profileId, outcome: parsed.data.honorC },
+                  { profileId: d.profileId, outcome: parsed.data.honorD },
+                ],
+              }),
+              statsStore.recordMatchHistory({
+                matchId,
+                recordedAt: parsed.data.recordedAt,
+                playerAProfileId: a.profileId,
+                playerBProfileId: b.profileId,
+                playerCProfileId: c.profileId,
+                playerDProfileId: d.profileId,
+                r1NorthSouth: parsed.data.r1NorthSouth,
+                r1EastWest: parsed.data.r1EastWest,
+                r2NorthSouth: parsed.data.r2NorthSouth,
+                r2EastWest: parsed.data.r2EastWest,
+                r3NorthSouth: parsed.data.r3NorthSouth,
+                r3EastWest: parsed.data.r3EastWest,
+                honorA: parsed.data.honorA,
+                honorB: parsed.data.honorB,
+                honorC: parsed.data.honorC,
+                honorD: parsed.data.honorD,
+              }),
+            ]).then(() => matchId);
+          })
+          .then((matchId) => {
+            setCorsHeaders();
+            res.writeHead(201, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, matchId }));
+          })
+          .catch((error) => {
+            setCorsHeaders();
+            console.warn('Failed to insert manual stats match', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Failed to insert manual match' }));
+          });
+      } catch {
+        setCorsHeaders();
+        res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Invalid JSON payload' }));
+      }
+    });
+    return;
+  }
+
   setCorsHeaders();
   res
     .writeHead(404, { 'Content-Type': 'application/json' })
@@ -260,6 +346,25 @@ const io = new Server(httpServer, {
   cors: {
     origin: '*',
   },
+});
+
+const manualMatchInsertSchema = z.object({
+  matchId: z.string().min(1).optional(),
+  recordedAt: z.string().datetime().optional(),
+  A: z.string().min(1),
+  B: z.string().min(1),
+  C: z.string().min(1),
+  D: z.string().min(1),
+  r1NorthSouth: z.number(),
+  r1EastWest: z.number(),
+  r2NorthSouth: z.number(),
+  r2EastWest: z.number(),
+  r3NorthSouth: z.number(),
+  r3EastWest: z.number(),
+  honorA: z.enum(['Talson', 'Usha', 'Neutral']),
+  honorB: z.enum(['Talson', 'Usha', 'Neutral']),
+  honorC: z.enum(['Talson', 'Usha', 'Neutral']),
+  honorD: z.enum(['Talson', 'Usha', 'Neutral']),
 });
 
 type ActorInfo = {
@@ -425,6 +530,16 @@ io.on('connection', (socket) => {
 
     const { roomId, name, profileId } = parse.data;
     const role: ParticipantRole = parse.data.role ?? 'player';
+    const nameValidationError = role === 'player' ? getJoinNameValidationError(name) : null;
+    if (nameValidationError) {
+      socket.emit('joinValidationError', {
+        code: nameValidationError.code,
+        field: nameValidationError.field,
+        message: nameValidationError.message,
+      });
+      socket.emit('errorMessage', nameValidationError.message);
+      return;
+    }
     let resolvedProfileId: string | undefined = profileId;
     if (role === 'player' && statsStore) {
       try {

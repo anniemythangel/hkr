@@ -121,6 +121,15 @@ describe('stats store', () => {
     expect(fromAlias.profileId).toBe(a.profileId);
   });
 
+  it('rejects blacklisted profile names in resolveProfile', async () => {
+    const { store } = await createTestStore();
+    await expect(store.resolveProfile({ aliasRaw: 'Player A' })).rejects.toThrow('reserved');
+    await expect(store.resolveProfile({ aliasRaw: '  pLaYeR   d  ' })).rejects.toThrow('reserved');
+    await expect(store.resolveProfile({ aliasRaw: 'Allowed Name' })).resolves.toMatchObject({
+      displayName: 'Allowed Name',
+    });
+  });
+
   it('paginates player recent outcomes', async () => {
     const { store } = await createTestStore();
     const p = await store.resolveProfile({ aliasRaw: 'Paged Player' });
