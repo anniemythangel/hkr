@@ -186,9 +186,23 @@ export default function StatsPage() {
 
         {status === 'ready' && players.length > 0 ? (
           <>
-            <p>
-              Leaders: Talson {leaders.talson?.displayName ?? '-'} · Usha {leaders.usha?.displayName ?? '-'} · Matches{' '}
-              {leaders.matches?.displayName ?? '-'}
+            <p className="stats-leaders" aria-label="Leaders summary">
+              <span className="stats-leader-chip stats-leader-chip--trophy">
+                <span className="stats-leader-label">Leader 🏆:</span>
+                <span className="stats-leader-value">{leaders.talson?.displayName ?? '-'}</span>
+              </span>
+              <span className="stats-leader-chip stats-leader-chip--usha">
+                <span className="stats-leader-label">Usha 💩:</span>
+                <span className="stats-leader-value">{leaders.usha?.displayName ?? '-'}</span>
+              </span>
+              <span className="stats-leader-chip stats-leader-chip--talson">
+                <span className="stats-leader-label">Talson 😎:</span>
+                <span className="stats-leader-value">{leaders.talson?.displayName ?? '-'}</span>
+              </span>
+              <span className="stats-leader-chip stats-leader-chip--matches">
+                <span className="stats-leader-label">Matches ♞:</span>
+                <span className="stats-leader-value">{leaders.matches?.displayName ?? '-'}</span>
+              </span>
             </p>
             <div className="stats-table-wrap">
               <table>
@@ -221,7 +235,7 @@ export default function StatsPage() {
 
         {selected && status !== 'loading' ? (
           <section>
-            <h2>{selected.displayName}</h2>
+            <h2 className="stats-section-title">{selected.displayName}</h2>
             <p>Aliases: {selected.aliases.map((alias) => alias.aliasRaw).join(', ') || 'None'}</p>
             <ul>
               {selected.recentOutcomes.map((outcome) => (
@@ -243,7 +257,7 @@ export default function StatsPage() {
         ) : null}
 
         <section>
-          <h2>Match History</h2>
+          <h2 className="stats-section-title">Match History</h2>
           {historyRows.length === 0 ? <p>No completed matches yet.</p> : null}
           <div className="stats-table-wrap">
             <table>
