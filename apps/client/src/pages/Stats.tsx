@@ -242,12 +242,6 @@ export default function StatsPage() {
                   <PlayerIdentityChip displayName={leaders.usha ?? '-'} className="stats-leader-player" />
                 </span>
               </span>
-              <span className="stats-leader-chip stats-leader-chip--talson">
-                <span className="stats-leader-label">Talson 😎:</span>
-                <span className="stats-leader-value">
-                  <PlayerIdentityChip displayName={leaders.talson ?? '-'} className="stats-leader-player" />
-                </span>
-              </span>
               <span className="stats-leader-chip stats-leader-chip--matches">
                 <span className="stats-leader-label">Matches ♞:</span>
                 <span className="stats-leader-value">

@@ -174,7 +174,7 @@ describe('StatsPage', () => {
     expect(container.textContent).toContain('Benonimi')
   })
 
-  it('renders Talson trophy leader text and keeps tie labels where applicable', async () => {
+  it('renders leaderboard labels and keeps tie labels where applicable', async () => {
     mockFetchSequence([
       { ok: true, body: { stats: { available: true } } },
       {
@@ -200,7 +200,6 @@ describe('StatsPage', () => {
 
     expect(container.textContent).toContain('Talson 🏆:')
     expect(container.textContent).toContain('Azrikam')
-    expect(container.textContent).toContain('Talson 😎:')
     expect(container.textContent).toContain('Tie: Azrikam and Beni')
     expect(container.textContent).toContain('Usha 💩: Null')
   })
