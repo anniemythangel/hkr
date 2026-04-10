@@ -103,14 +103,39 @@ export default function StatsPage() {
     }
   }, [])
 
-  const leaders = useMemo(
-    () => ({
-      talson: [...players].sort((a, b) => b.talson - a.talson)[0],
-      usha: [...players].sort((a, b) => b.usha - a.usha)[0],
-      matches: [...players].sort((a, b) => b.matches - a.matches)[0],
-    }),
-    [players],
-  )
+  const leaders = useMemo(() => {
+    const getTopPlayers = (metric: 'talson' | 'usha' | 'matches') => {
+      if (players.length === 0) return []
+      const topValue = Math.max(...players.map((player) => player[metric]))
+      return players.filter((player) => player[metric] === topValue)
+    }
+
+    const formatLeaderLabel = (
+      metric: 'talson' | 'usha' | 'matches',
+      options?: { nullWhenAllZero?: boolean },
+    ) => {
+      const topPlayers = getTopPlayers(metric)
+      if (topPlayers.length === 0) return '-'
+      if (options?.nullWhenAllZero && topPlayers.every((player) => player[metric] === 0)) {
+        return 'Null'
+      }
+      if (topPlayers.length === 1) return topPlayers[0].displayName
+
+      const names = topPlayers.map((player) => player.displayName)
+      const listedNames =
+        names.length === 2
+          ? `${names[0]} and ${names[1]}`
+          : `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`
+      return `Tie: ${listedNames}`
+    }
+
+    return {
+      leader: formatLeaderLabel('talson'),
+      usha: formatLeaderLabel('usha', { nullWhenAllZero: true }),
+      talson: formatLeaderLabel('talson'),
+      matches: formatLeaderLabel('matches'),
+    }
+  }, [players])
 
   const loadPlayerDetails = async (profileId: string, cursor?: string) => {
     setLoadingDetails(true)
@@ -187,10 +212,10 @@ export default function StatsPage() {
         {status === 'ready' && players.length > 0 ? (
           <>
             <p className="stats-leaders" aria-label="Leaders summary">
-              <span className="stats-leader-chip">Leader 🏆: {leaders.talson?.displayName ?? '-'}</span>
-              <span className="stats-leader-chip">Usha 💩: {leaders.usha?.displayName ?? '-'}</span>
-              <span className="stats-leader-chip">Talson 😎: {leaders.talson?.displayName ?? '-'}</span>
-              <span className="stats-leader-chip">Matches ♞: {leaders.matches?.displayName ?? '-'}</span>
+              <span className="stats-leader-chip">Leader 🏆: {leaders.leader}</span>
+              <span className="stats-leader-chip">Usha 💩: {leaders.usha}</span>
+              <span className="stats-leader-chip">Talson 😎: {leaders.talson}</span>
+              <span className="stats-leader-chip">Matches ♞: {leaders.matches}</span>
             </p>
             <div className="stats-table-wrap">
               <table>
