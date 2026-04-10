@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { GAME_ROTATION } from '@hooker/shared'
-import { getPlayerColorClass, getPlayerEmoji, getPlayerIdentityKey } from '../utils/playerIdentity'
+import { getPlayerColorClass, getPlayerIdentityKey } from '../utils/playerIdentity'
 
 type PlayerStats = {
   profileId: string
@@ -34,7 +34,6 @@ function PlayerIdentityChip({ profileId, displayName, className }: PlayerIdentit
   const key = getPlayerIdentityKey(profileId, displayName)
   return (
     <span className={[`player-identity-chip ${getPlayerColorClass(key)}`, className].filter(Boolean).join(' ')}>
-      <span aria-hidden="true" className="player-identity-emoji">{getPlayerEmoji(key)}</span>
       <span>{displayName}</span>
     </span>
   )
@@ -231,19 +230,19 @@ export default function StatsPage() {
           <>
             <p className="stats-leaders" aria-label="Leaders summary">
               <span className="stats-leader-chip">
-                <span className="stats-leader-label">👏🏼👑 Talson 👑👏🏼:</span>
+                <span className="stats-leader-label">Talson:</span>
                 <span className="stats-leader-value stats-leader-value--trophy">
                   <PlayerIdentityChip displayName={leaders.talson ?? '-'} className="stats-leader-player" />
                 </span>
               </span>
               <span className="stats-leader-chip">
-                <span className="stats-leader-label">😂🫵 Usha 🫵😂:</span>
+                <span className="stats-leader-label">Usha:</span>
                 <span className="stats-leader-value stats-leader-value--usha">
                   <PlayerIdentityChip displayName={leaders.usha ?? '-'} className="stats-leader-player" />
                 </span>
               </span>
               <span className="stats-leader-chip">
-                <span className="stats-leader-label">🎮 Matches 🎮:</span>
+                <span className="stats-leader-label">Matches:</span>
                 <span className="stats-leader-value stats-leader-value--matches">
                   <PlayerIdentityChip displayName={leaders.matches ?? '-'} className="stats-leader-player" />
                 </span>
