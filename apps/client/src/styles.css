@@ -2038,6 +2038,46 @@ button:disabled {
   background: rgba(51, 65, 85, 0.34);
 }
 
+
+/* Player identity chips target WCAG AA (4.5:1) contrast on dark backgrounds. */
+.player-identity-chip {
+  --identity-bg: #1f2937;
+  --identity-fg: #f8fafc;
+  --identity-border: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--identity-border);
+  background: var(--identity-bg);
+  color: var(--identity-fg);
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.16rem 0.5rem;
+  white-space: nowrap;
+}
+
+.player-identity-emoji {
+  font-size: 0.92em;
+}
+
+.stats-leader-player {
+  max-width: 100%;
+}
+
+.player-identity-0 { --identity-bg: #1e3a8a; --identity-fg: #eff6ff; --identity-border: #93c5fd; }
+.player-identity-1 { --identity-bg: #7f1d1d; --identity-fg: #fef2f2; --identity-border: #fca5a5; }
+.player-identity-2 { --identity-bg: #14532d; --identity-fg: #f0fdf4; --identity-border: #86efac; }
+.player-identity-3 { --identity-bg: #581c87; --identity-fg: #faf5ff; --identity-border: #d8b4fe; }
+.player-identity-4 { --identity-bg: #0f766e; --identity-fg: #f0fdfa; --identity-border: #5eead4; }
+.player-identity-5 { --identity-bg: #78350f; --identity-fg: #fffbeb; --identity-border: #fcd34d; }
+.player-identity-6 { --identity-bg: #312e81; --identity-fg: #eef2ff; --identity-border: #a5b4fc; }
+.player-identity-7 { --identity-bg: #4c0519; --identity-fg: #fff1f2; --identity-border: #fda4af; }
+.player-identity-8 { --identity-bg: #134e4a; --identity-fg: #f0fdfa; --identity-border: #99f6e4; }
+.player-identity-9 { --identity-bg: #3f3f46; --identity-fg: #fafafa; --identity-border: #d4d4d8; }
+.player-identity-10 { --identity-bg: #0c4a6e; --identity-fg: #f0f9ff; --identity-border: #7dd3fc; }
+.player-identity-11 { --identity-bg: #422006; --identity-fg: #fff7ed; --identity-border: #fdba74; }
+
 .stats-section-title {
   font-size: clamp(1.45rem, 1.2rem + 0.8vw, 1.9rem);
   line-height: 1.1;

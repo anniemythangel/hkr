@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import { act } from 'react-dom/test-utils'
 import StatsPage from './Stats'
+import { getPlayerColorClass, getPlayerEmoji, getPlayerIdentityKey } from '../utils/playerIdentity'
 
 const originalFetch = globalThis.fetch
 
@@ -173,14 +174,14 @@ describe('StatsPage', () => {
     expect(container.textContent).toContain('Benonimi')
   })
 
-  it('renders Null usha when all usha counts are zero and tie labels for shared leaders', async () => {
+  it('renders Talson trophy leader text and keeps tie labels where applicable', async () => {
     mockFetchSequence([
       { ok: true, body: { stats: { available: true } } },
       {
         ok: true,
         body: {
           players: [
-            { profileId: 'p1', displayName: 'Avi', talson: 3, usha: 0, neutral: 0, matches: 4, lastPlayed: null },
+            { profileId: 'p1', displayName: 'Azrikam', talson: 5, usha: 0, neutral: 0, matches: 4, lastPlayed: null },
             { profileId: 'p2', displayName: 'Beni', talson: 3, usha: 0, neutral: 1, matches: 4, lastPlayed: null },
             { profileId: 'p3', displayName: 'Chaim', talson: 1, usha: 0, neutral: 3, matches: 2, lastPlayed: null },
           ],
@@ -197,9 +198,72 @@ describe('StatsPage', () => {
       root.render(<StatsPage />)
     })
 
-    expect(container.textContent).toContain('Leader 🏆: Tie: Avi and Beni')
-    expect(container.textContent).toContain('Talson 😎: Tie: Avi and Beni')
-    expect(container.textContent).toContain('Matches ♞: Tie: Avi and Beni')
+    expect(container.textContent).toContain('Talson 🏆:')
+    expect(container.textContent).toContain('Azrikam')
+    expect(container.textContent).toContain('Talson 😎:')
+    expect(container.textContent).toContain('Tie: Azrikam and Beni')
     expect(container.textContent).toContain('Usha 💩: Null')
   })
+
+  it('renders identity chips and keeps emoji/color deterministic across table and history', async () => {
+    mockFetchSequence([
+      { ok: true, body: { stats: { available: true } } },
+      {
+        ok: true,
+        body: {
+          players: [
+            { profileId: 'p1', displayName: 'Avi', talson: 1, usha: 0, neutral: 0, matches: 1, lastPlayed: null },
+          ],
+        },
+      },
+      {
+        ok: true,
+        body: {
+          rows: [
+            {
+              matchId: 'm1',
+              recordedAt: '2026-01-01T00:00:00.000Z',
+              players: {
+                A: { profileId: 'p1', displayName: 'Avi' },
+                B: { profileId: 'p2', displayName: 'Beni' },
+                C: { profileId: 'p3', displayName: 'Chaim' },
+                D: { profileId: 'p4', displayName: 'Dov' },
+              },
+              rounds: [
+                { round: 1, northSouth: 16, eastWest: 12 },
+                { round: 2, northSouth: 10, eastWest: 16 },
+                { round: 3, northSouth: 12, eastWest: 12 },
+              ],
+              honors: { A: 'Talson', B: 'Neutral', C: 'Usha', D: 'Neutral' },
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    ])
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(<StatsPage />)
+    })
+
+    const chips = Array.from(container.querySelectorAll('.player-identity-chip'))
+    expect(chips.length).toBeGreaterThan(0)
+
+    const aviChips = chips.filter((chip) => chip.textContent?.includes('Avi'))
+    expect(aviChips.length).toBeGreaterThanOrEqual(2)
+
+    const aviKey = getPlayerIdentityKey('p1', 'Avi')
+    const expectedClass = getPlayerColorClass(aviKey)
+    const expectedEmoji = getPlayerEmoji(aviKey)
+
+    aviChips.forEach((chip) => {
+      expect(chip.classList.contains(expectedClass)).toBe(true)
+      expect(chip.textContent).toContain(expectedEmoji)
+    })
+  })
+
 })
