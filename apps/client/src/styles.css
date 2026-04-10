@@ -1968,6 +1968,39 @@ button:disabled {
   border-collapse: collapse;
 }
 
+.stats-page {
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.stats-page > section,
+.stats-page > .stats-table-wrap,
+.stats-page > p {
+  max-width: 1240px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.stats-leaders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 1rem;
+  text-align: center;
+}
+
+.stats-leader-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(94, 234, 212, 0.25);
+  background: rgba(15, 34, 28, 0.65);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-weight: 600;
+}
+
 .stats-page th,
 .stats-page td {
   text-align: left;
@@ -1983,7 +2016,10 @@ button:disabled {
 .stats-table-wrap {
   width: 100%;
   overflow-x: auto;
-  margin-bottom: 1rem;
+  margin: 0 auto 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(148, 197, 166, 0.16);
+  background: rgba(9, 20, 18, 0.35);
 }
 
 .stats-date-toggle {

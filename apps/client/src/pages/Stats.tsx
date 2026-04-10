@@ -186,9 +186,11 @@ export default function StatsPage() {
 
         {status === 'ready' && players.length > 0 ? (
           <>
-            <p>
-              Leaders: Talson {leaders.talson?.displayName ?? '-'} · Usha {leaders.usha?.displayName ?? '-'} · Matches{' '}
-              {leaders.matches?.displayName ?? '-'}
+            <p className="stats-leaders" aria-label="Leaders summary">
+              <span className="stats-leader-chip">Leader 🏆: {leaders.talson?.displayName ?? '-'}</span>
+              <span className="stats-leader-chip">Usha 💩: {leaders.usha?.displayName ?? '-'}</span>
+              <span className="stats-leader-chip">Talson 😎: {leaders.talson?.displayName ?? '-'}</span>
+              <span className="stats-leader-chip">Matches ♞: {leaders.matches?.displayName ?? '-'}</span>
             </p>
             <div className="stats-table-wrap">
               <table>
