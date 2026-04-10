@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { GAME_ROTATION } from '@hooker/shared'
 
 type PlayerStats = {
@@ -39,6 +39,17 @@ const HONOR_LABELS: Record<MatchHonorOutcome, string> = {
   Talson: 'Talson',
   Usha: 'Usha',
   Neutral: 'Benonimi',
+}
+const PLAYER_MARKERS = ['🐯', '🦊', '🐢', '🐙', '🦉', '🐸', '🍎', '🍋', '🍇', '⭐', '⚡', '🎯']
+const PLAYER_COLOR_CLASSES = ['player-tone-1', 'player-tone-2', 'player-tone-3', 'player-tone-4', 'player-tone-5', 'player-tone-6']
+
+function hashText(value: string) {
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index)
+    hash |= 0
+  }
+  return Math.abs(hash)
 }
 
 function resolveServerBase() {
@@ -103,14 +114,62 @@ export default function StatsPage() {
     }
   }, [])
 
-  const leaders = useMemo(
-    () => ({
-      talson: [...players].sort((a, b) => b.talson - a.talson)[0],
-      usha: [...players].sort((a, b) => b.usha - a.usha)[0],
-      matches: [...players].sort((a, b) => b.matches - a.matches)[0],
-    }),
-    [players],
-  )
+  const renderPlayerBadge = (profileId: string | null, displayName: string) => {
+    const seed = hashText(`${profileId ?? 'anon'}:${displayName}`)
+    const emoji = PLAYER_MARKERS[seed % PLAYER_MARKERS.length]
+    const colorClass = PLAYER_COLOR_CLASSES[seed % PLAYER_COLOR_CLASSES.length]
+    return (
+      <span className={`player-badge ${colorClass}`}>
+        <span className="player-badge-emoji" aria-hidden="true">
+          {emoji}
+        </span>
+        <span>{displayName}</span>
+      </span>
+    )
+  }
+
+  const leaders = useMemo(() => {
+    const getTopPlayers = (metric: 'talson' | 'usha' | 'matches') => {
+      if (players.length === 0) return []
+      const topValue = Math.max(...players.map((player) => player[metric]))
+      return players.filter((player) => player[metric] === topValue)
+    }
+
+    const renderDelimitedPlayers = (topPlayers: PlayerStats[]) => (
+      <>
+        {topPlayers.map((player, index) => (
+          <Fragment key={player.profileId}>
+            {index > 0 ? (index === topPlayers.length - 1 ? ' and ' : ', ') : null}
+            {renderPlayerBadge(player.profileId, player.displayName)}
+          </Fragment>
+        ))}
+      </>
+    )
+
+    const formatLeaderLabel = (
+      metric: 'talson' | 'usha' | 'matches',
+      options?: { nullWhenAllZero?: boolean },
+    ): ReactNode => {
+      const topPlayers = getTopPlayers(metric)
+      if (topPlayers.length === 0) return '-'
+      if (options?.nullWhenAllZero && topPlayers.every((player) => player[metric] === 0)) {
+        return 'Null'
+      }
+      if (topPlayers.length === 1) return renderPlayerBadge(topPlayers[0].profileId, topPlayers[0].displayName)
+      return (
+        <>
+          Tie: {renderDelimitedPlayers(topPlayers)}
+        </>
+      )
+    }
+
+    return {
+      leader: formatLeaderLabel('talson'),
+      usha: formatLeaderLabel('usha', { nullWhenAllZero: true }),
+      talson: formatLeaderLabel('talson'),
+      matches: formatLeaderLabel('matches'),
+    }
+  }, [players])
 
   const loadPlayerDetails = async (profileId: string, cursor?: string) => {
     setLoadingDetails(true)
@@ -187,10 +246,10 @@ export default function StatsPage() {
         {status === 'ready' && players.length > 0 ? (
           <>
             <p className="stats-leaders" aria-label="Leaders summary">
-              <span className="stats-leader-chip">Leader 🏆: {leaders.talson?.displayName ?? '-'}</span>
-              <span className="stats-leader-chip">Usha 💩: {leaders.usha?.displayName ?? '-'}</span>
-              <span className="stats-leader-chip">Talson 😎: {leaders.talson?.displayName ?? '-'}</span>
-              <span className="stats-leader-chip">Matches ♞: {leaders.matches?.displayName ?? '-'}</span>
+              <span className="stats-leader-chip">Leader 🏆: {leaders.leader}</span>
+              <span className="stats-leader-chip">Usha 💩: {leaders.usha}</span>
+              <span className="stats-leader-chip">Talson 😎: {leaders.talson}</span>
+              <span className="stats-leader-chip">Matches ♞: {leaders.matches}</span>
             </p>
             <div className="stats-table-wrap">
               <table>
@@ -207,7 +266,7 @@ export default function StatsPage() {
                 <tbody>
                   {players.map((player) => (
                     <tr key={player.profileId} onClick={() => void loadPlayerDetails(player.profileId)}>
-                      <td>{player.displayName}</td>
+                      <td>{renderPlayerBadge(player.profileId, player.displayName)}</td>
                       <td>{player.talson}</td>
                       <td>{player.usha}</td>
                       <td>{player.neutral}</td>
@@ -223,7 +282,7 @@ export default function StatsPage() {
 
         {selected && status !== 'loading' ? (
           <section>
-            <h2>{selected.displayName}</h2>
+            <h2>{renderPlayerBadge(selected.profileId, selected.displayName)}</h2>
             <p>Aliases: {selected.aliases.map((alias) => alias.aliasRaw).join(', ') || 'None'}</p>
             <ul>
               {selected.recentOutcomes.map((outcome) => (
@@ -278,10 +337,10 @@ export default function StatsPage() {
                             {new Date(row.recordedAt).toLocaleString()}
                           </button>
                         </td>
-                        <td>{row.players.A.displayName}</td>
-                        <td>{row.players.B.displayName}</td>
-                        <td>{row.players.C.displayName}</td>
-                        <td>{row.players.D.displayName}</td>
+                        <td>{renderPlayerBadge(row.players.A.profileId, row.players.A.displayName)}</td>
+                        <td>{renderPlayerBadge(row.players.B.profileId, row.players.B.displayName)}</td>
+                        <td>{renderPlayerBadge(row.players.C.profileId, row.players.C.displayName)}</td>
+                        <td>{renderPlayerBadge(row.players.D.profileId, row.players.D.displayName)}</td>
                         <td>{formatRound(row.rounds[0])}</td>
                         <td>{formatRound(row.rounds[1])}</td>
                         <td>{formatRound(row.rounds[2])}</td>
