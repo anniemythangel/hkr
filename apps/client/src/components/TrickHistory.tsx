@@ -30,7 +30,7 @@ const RECENT_LIMIT = 8
 function suitColorClass(suit: Trick['cards'][number]['card']['suit']) {
   return suit === 'hearts' || suit === 'diamonds'
     ? 'trick-history-suit trick-history-suit-red'
-    : 'trick-history-suit trick-history-suit-neutral'
+    : 'trick-history-suit trick-history-suit-black'
 }
 
 function cardAbbrev(card: Trick['cards'][number]['card'], enableSuitColoring: boolean) {
