@@ -5,9 +5,11 @@
   color: #f8fafc;
   /* Trick-history suit tokens target >= 4.5:1 contrast against dark table cells. */
   --trick-history-suit-red: #fca5a5;
-  --trick-history-suit-neutral: #e2e8f0;
+  --trick-history-suit-black-charcoal: #242424;
+  --trick-history-suit-black-outline: 0 0 1px rgba(248, 250, 252, 0.22);
   --trick-history-suit-red-strong-contrast: #ff4d4d;
-  --trick-history-suit-neutral-strong-contrast: #ffffff;
+  --trick-history-suit-black-charcoal-strong-contrast: #2a2a2a;
+  --trick-history-suit-black-outline-strong-contrast: 0 0 1px rgba(248, 250, 252, 0.3);
 }
 
 body {
@@ -1719,8 +1721,9 @@ button:disabled {
   color: var(--trick-history-suit-red);
 }
 
-.trick-history-suit-neutral {
-  color: var(--trick-history-suit-neutral);
+.trick-history-suit-black {
+  color: var(--trick-history-suit-black-charcoal);
+  text-shadow: var(--trick-history-suit-black-outline);
 }
 
 .trick-history-row:hover .trick-history-suit-red,
@@ -1729,10 +1732,11 @@ button:disabled {
   color: var(--trick-history-suit-red);
 }
 
-.trick-history-row:hover .trick-history-suit-neutral,
-.trick-history-row[aria-selected='true'] .trick-history-suit-neutral,
-.trick-history-row[aria-disabled='true'] .trick-history-suit-neutral {
-  color: var(--trick-history-suit-neutral);
+.trick-history-row:hover .trick-history-suit-black,
+.trick-history-row[aria-selected='true'] .trick-history-suit-black,
+.trick-history-row[aria-disabled='true'] .trick-history-suit-black {
+  color: var(--trick-history-suit-black-charcoal);
+  text-shadow: var(--trick-history-suit-black-outline);
 }
 
 @media (prefers-contrast: more) {
@@ -1740,8 +1744,9 @@ button:disabled {
     color: var(--trick-history-suit-red-strong-contrast);
   }
 
-  .trick-history-suit-neutral {
-    color: var(--trick-history-suit-neutral-strong-contrast);
+  .trick-history-suit-black {
+    color: var(--trick-history-suit-black-charcoal-strong-contrast);
+    text-shadow: var(--trick-history-suit-black-outline-strong-contrast);
   }
 }
 
@@ -1750,8 +1755,9 @@ button:disabled {
     color: LinkText;
   }
 
-  .trick-history-suit-neutral {
+  .trick-history-suit-black {
     color: CanvasText;
+    text-shadow: none;
   }
 }
 
