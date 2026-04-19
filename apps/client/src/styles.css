@@ -3,6 +3,11 @@
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: radial-gradient(circle at top, #0f1f1a, #050b0a 65%);
   color: #f8fafc;
+  /* Trick-history suit tokens target >= 4.5:1 contrast against dark table cells. */
+  --trick-history-suit-red: #fca5a5;
+  --trick-history-suit-neutral: #e2e8f0;
+  --trick-history-suit-red-strong-contrast: #ff4d4d;
+  --trick-history-suit-neutral-strong-contrast: #ffffff;
 }
 
 body {
@@ -1700,6 +1705,54 @@ button:disabled {
   font-size: 0.9rem;
   letter-spacing: 0.04em;
   min-height: 1.8rem;
+}
+
+.trick-history-rank {
+  color: inherit;
+}
+
+.trick-history-suit {
+  color: inherit;
+}
+
+.trick-history-suit-red {
+  color: var(--trick-history-suit-red);
+}
+
+.trick-history-suit-neutral {
+  color: var(--trick-history-suit-neutral);
+}
+
+.trick-history-row:hover .trick-history-suit-red,
+.trick-history-row[aria-selected='true'] .trick-history-suit-red,
+.trick-history-row[aria-disabled='true'] .trick-history-suit-red {
+  color: var(--trick-history-suit-red);
+}
+
+.trick-history-row:hover .trick-history-suit-neutral,
+.trick-history-row[aria-selected='true'] .trick-history-suit-neutral,
+.trick-history-row[aria-disabled='true'] .trick-history-suit-neutral {
+  color: var(--trick-history-suit-neutral);
+}
+
+@media (prefers-contrast: more) {
+  .trick-history-suit-red {
+    color: var(--trick-history-suit-red-strong-contrast);
+  }
+
+  .trick-history-suit-neutral {
+    color: var(--trick-history-suit-neutral-strong-contrast);
+  }
+}
+
+@media (forced-colors: active) {
+  .trick-history-suit-red {
+    color: LinkText;
+  }
+
+  .trick-history-suit-neutral {
+    color: CanvasText;
+  }
 }
 
 .trick-history-card-winner {

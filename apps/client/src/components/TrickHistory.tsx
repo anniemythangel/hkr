@@ -6,6 +6,7 @@ interface TrickHistoryProps {
   tricks: Trick[]
   seatingOrder: PlayerId[]
   nameForSeat: (seat: PlayerId) => string
+  enableSuitColoring?: boolean
 }
 
 const SUIT_SYMBOL: Record<Trick['cards'][number]['card']['suit'], string> = {
@@ -26,11 +27,27 @@ const RANK_SYMBOL: Record<Trick['cards'][number]['card']['rank'], string> = {
 
 const RECENT_LIMIT = 8
 
-function cardAbbrev(card: Trick['cards'][number]['card']) {
-  return `${RANK_SYMBOL[card.rank]}${SUIT_SYMBOL[card.suit]}`
+function suitColorClass(suit: Trick['cards'][number]['card']['suit']) {
+  return suit === 'hearts' || suit === 'diamonds'
+    ? 'trick-history-suit trick-history-suit-red'
+    : 'trick-history-suit trick-history-suit-neutral'
 }
 
-export function TrickHistory({ tricks, seatingOrder, nameForSeat }: TrickHistoryProps) {
+function cardAbbrev(card: Trick['cards'][number]['card'], enableSuitColoring: boolean) {
+  return (
+    <>
+      <span className="trick-history-rank">{RANK_SYMBOL[card.rank]}</span>
+      <span className={enableSuitColoring ? suitColorClass(card.suit) : 'trick-history-suit'}>{SUIT_SYMBOL[card.suit]}</span>
+    </>
+  )
+}
+
+export function TrickHistory({
+  tricks,
+  seatingOrder,
+  nameForSeat,
+  enableSuitColoring = true,
+}: TrickHistoryProps) {
   if (!tricks.length) {
     return (
       <section className="trick-history-panel" aria-label="Trick history">
@@ -90,7 +107,7 @@ export function TrickHistory({ tricks, seatingOrder, nameForSeat }: TrickHistory
                           : `${name} did not play`
                       }
                     >
-                      {play ? cardAbbrev(play.card) : '—'}
+                      {play ? cardAbbrev(play.card, enableSuitColoring) : '—'}
                     </span>
                   )
                 })}
