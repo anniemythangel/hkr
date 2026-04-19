@@ -5,11 +5,12 @@
   color: #f8fafc;
   /* Trick-history suit tokens target >= 4.5:1 contrast against dark table cells. */
   --trick-history-suit-red: #fca5a5;
-  --trick-history-suit-black-charcoal: #242424;
-  --trick-history-suit-black-outline: 0 0 1px rgba(248, 250, 252, 0.22);
+  --trick-history-suit-black: #d1d5db;
+  --trick-history-suit-black-stroke: rgba(0, 0, 0, 0.45);
+  --trick-history-suit-black-shadow: 0 0 0.35px rgba(0, 0, 0, 0.45), 0 0 1.25px rgba(248, 250, 252, 0.18);
   --trick-history-suit-red-strong-contrast: #ff4d4d;
-  --trick-history-suit-black-charcoal-strong-contrast: #2a2a2a;
-  --trick-history-suit-black-outline-strong-contrast: 0 0 1px rgba(248, 250, 252, 0.3);
+  --trick-history-suit-black-strong-contrast: #f1f5f9;
+  --trick-history-suit-black-shadow-strong-contrast: 0 0 0.35px rgba(0, 0, 0, 0.5), 0 0 1.5px rgba(248, 250, 252, 0.26);
 }
 
 body {
@@ -1715,6 +1716,9 @@ button:disabled {
 
 .trick-history-suit {
   color: inherit;
+  font-size: 1.05em;
+  font-weight: 700;
+  margin-left: 0.03em;
 }
 
 .trick-history-suit-red {
@@ -1722,8 +1726,9 @@ button:disabled {
 }
 
 .trick-history-suit-black {
-  color: var(--trick-history-suit-black-charcoal);
-  text-shadow: var(--trick-history-suit-black-outline);
+  color: var(--trick-history-suit-black);
+  -webkit-text-stroke: 0.35px var(--trick-history-suit-black-stroke);
+  text-shadow: var(--trick-history-suit-black-shadow);
 }
 
 .trick-history-row:hover .trick-history-suit-red,
@@ -1735,8 +1740,9 @@ button:disabled {
 .trick-history-row:hover .trick-history-suit-black,
 .trick-history-row[aria-selected='true'] .trick-history-suit-black,
 .trick-history-row[aria-disabled='true'] .trick-history-suit-black {
-  color: var(--trick-history-suit-black-charcoal);
-  text-shadow: var(--trick-history-suit-black-outline);
+  color: var(--trick-history-suit-black);
+  -webkit-text-stroke: 0.35px var(--trick-history-suit-black-stroke);
+  text-shadow: var(--trick-history-suit-black-shadow);
 }
 
 @media (prefers-contrast: more) {
@@ -1745,8 +1751,9 @@ button:disabled {
   }
 
   .trick-history-suit-black {
-    color: var(--trick-history-suit-black-charcoal-strong-contrast);
-    text-shadow: var(--trick-history-suit-black-outline-strong-contrast);
+    color: var(--trick-history-suit-black-strong-contrast);
+    -webkit-text-stroke: 0.35px var(--trick-history-suit-black-stroke);
+    text-shadow: var(--trick-history-suit-black-shadow-strong-contrast);
   }
 }
 
@@ -1757,6 +1764,7 @@ button:disabled {
 
   .trick-history-suit-black {
     color: CanvasText;
+    -webkit-text-stroke: 0;
     text-shadow: none;
   }
 }
