@@ -1,8 +1,23 @@
-node_modules
+# Dependency Directories
+node_modules/
+ui/node_modules/
+
+# Build and Distribution Directories
+dist/
+ui/dist/
+apps/**/dist/
+coverage/
+
+# Log Files
+*.log
+npm-debug.log*
+
+# Lock Files
 pnpm-lock.yaml
-.DS_Store
-dist
-apps/**/dist
-coverage
-.vscode
+
+# Configuration and Environment
 .env
+.vscode/
+
+# macOS Files
+.DS_Store
