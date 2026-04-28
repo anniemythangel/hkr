@@ -45,7 +45,7 @@ const ENABLE_RECONNECT_GRACE = parseBooleanFlag(process.env.ENABLE_RECONNECT_GRA
 const ENABLE_JOIN_ACK_PROTOCOL = parseBooleanFlag(process.env.ENABLE_JOIN_ACK_PROTOCOL, false);
 const ENABLE_ROOM_CHECKPOINTS = parseBooleanFlag(process.env.ENABLE_ROOM_CHECKPOINTS, false);
 const ENABLE_ADMIN_SEAT_RELEASE = parseBooleanFlag(process.env.ENABLE_ADMIN_SEAT_RELEASE, false);
-const ENABLE_HIDDEN_ADMIN_ROUTE = parseBooleanFlag(process.env.ENABLE_HIDDEN_ADMIN_ROUTE, false);
+const ENABLE_HIDDEN_ADMIN_ROUTE = parseBooleanFlag(process.env.ENABLE_HIDDEN_ADMIN_ROUTE, true);
 const RECONNECT_GRACE_MS = Math.min(59_000, Number.parseInt(process.env.RECONNECT_GRACE_MS ?? '45000', 10) || 45_000);
 const ROOM_STORE_TTL_MS = Number.parseInt(process.env.ROOM_STORE_TTL_MS ?? `${1000 * 60 * 60 * 12}`, 10) || 1000 * 60 * 60 * 12;
 

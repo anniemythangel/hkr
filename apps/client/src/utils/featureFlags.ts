@@ -21,7 +21,7 @@ export const ENABLE_RECONNECT_GRACE = parseBooleanFlag(import.meta.env.VITE_ENAB
 export const ENABLE_JOIN_ACK_PROTOCOL = parseBooleanFlag(import.meta.env.VITE_ENABLE_JOIN_ACK_PROTOCOL, false)
 export const ENABLE_ROOM_CHECKPOINTS = parseBooleanFlag(import.meta.env.VITE_ENABLE_ROOM_CHECKPOINTS, false)
 export const ENABLE_ADMIN_SEAT_RELEASE = parseBooleanFlag(import.meta.env.VITE_ENABLE_ADMIN_SEAT_RELEASE, false)
-export const ENABLE_HIDDEN_ADMIN_ROUTE = parseBooleanFlag(import.meta.env.VITE_ENABLE_HIDDEN_ADMIN_ROUTE, false)
+export const ENABLE_HIDDEN_ADMIN_ROUTE = parseBooleanFlag(import.meta.env.VITE_ENABLE_HIDDEN_ADMIN_ROUTE, true)
 export const ADMIN_TOOLS_PATH = import.meta.env.VITE_ADMIN_TOOLS_PATH || '/_admin/seat-tools'
 
 export const RESPONSIVE_MODE_CLASS = 'is-responsive-enabled'
