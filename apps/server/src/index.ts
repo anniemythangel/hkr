@@ -46,7 +46,6 @@ const ENABLE_JOIN_ACK_PROTOCOL = parseBooleanFlag(process.env.ENABLE_JOIN_ACK_PR
 const ENABLE_ROOM_CHECKPOINTS = parseBooleanFlag(process.env.ENABLE_ROOM_CHECKPOINTS, false);
 const ENABLE_ADMIN_SEAT_RELEASE = parseBooleanFlag(process.env.ENABLE_ADMIN_SEAT_RELEASE, false);
 const ENABLE_HIDDEN_ADMIN_ROUTE = parseBooleanFlag(process.env.ENABLE_HIDDEN_ADMIN_ROUTE, false);
-const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN;
 const RECONNECT_GRACE_MS = Math.min(59_000, Number.parseInt(process.env.RECONNECT_GRACE_MS ?? '45000', 10) || 45_000);
 const ROOM_STORE_TTL_MS = Number.parseInt(process.env.ROOM_STORE_TTL_MS ?? `${1000 * 60 * 60 * 12}`, 10) || 1000 * 60 * 60 * 12;
 
@@ -152,11 +151,6 @@ const httpServer = createServer((req, res) => {
 
   const adminReleaseSeatMatch = requestUrl.pathname.match(/^\/admin\/rooms\/([^/]+)\/seats\/([^/]+)\/release$/);
   if (ENABLE_ADMIN_SEAT_RELEASE && req.method === 'POST' && adminReleaseSeatMatch) {
-    if (!ADMIN_API_TOKEN || req.headers.authorization !== `Bearer ${ADMIN_API_TOKEN}`) {
-      setCorsHeaders();
-      res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Unauthorized' }));
-      return;
-    }
     const roomId = decodeURIComponent(adminReleaseSeatMatch[1]);
     const seat = decodeURIComponent(adminReleaseSeatMatch[2]) as PlayerId;
     if (!PLAYERS.includes(seat)) {
@@ -172,11 +166,6 @@ const httpServer = createServer((req, res) => {
 
   const adminReleaseAllMatch = requestUrl.pathname.match(/^\/admin\/rooms\/([^/]+)\/seats\/release-all$/);
   if (ENABLE_ADMIN_SEAT_RELEASE && req.method === 'POST' && adminReleaseAllMatch) {
-    if (!ADMIN_API_TOKEN || req.headers.authorization !== `Bearer ${ADMIN_API_TOKEN}`) {
-      setCorsHeaders();
-      res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Unauthorized' }));
-      return;
-    }
     const roomId = decodeURIComponent(adminReleaseAllMatch[1]);
     forceReleaseAllSeats(roomId, 'admin');
     setCorsHeaders();

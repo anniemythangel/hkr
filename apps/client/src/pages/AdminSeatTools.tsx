@@ -7,7 +7,6 @@ export default function AdminSeatTools() {
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER)
   const [roomId, setRoomId] = useState('demo')
   const [seat, setSeat] = useState<PlayerId>('A')
-  const [token, setToken] = useState('')
   const [result, setResult] = useState<string>('')
 
   const runAction = async (path: string) => {
@@ -15,9 +14,6 @@ export default function AdminSeatTools() {
     if (!ok) return
     const response = await fetch(`${serverUrl.replace(/\/?$/, '')}${path}`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     })
     const text = await response.text()
     setResult(`${response.status}: ${text}`)
@@ -41,7 +37,6 @@ export default function AdminSeatTools() {
                 {PLAYERS.map((id) => <option key={id} value={id}>{id}</option>)}
               </select>
             </label>
-            <label><span>Admin token</span><input type="password" value={token} onChange={(e) => setToken(e.target.value)} /></label>
             <div className="form-actions">
               <button type="submit">Force clear seat</button>
               <button type="button" onClick={() => runAction(`/admin/rooms/${encodeURIComponent(roomId)}/seats/release-all`)}>Force clear all seats</button>
