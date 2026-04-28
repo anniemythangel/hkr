@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { PLAYERS } from '@hooker/shared';
 import type { MatchSnapshot, ParticipantRole, PlayerId, RoomLobbyState } from '@hooker/shared';
+import { ENABLE_JOIN_ACK_PROTOCOL } from '../utils/featureFlags';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+export type JoinStatus = 'idle' | 'joining' | 'joined' | 'join_failed';
 
 export type ConsoleActor = {
   seat: PlayerId | null;
@@ -42,6 +44,7 @@ export type RejoinToken = {
   role: ParticipantRole;
   seat?: PlayerId;
   followSeat?: PlayerId;
+  sessionKey?: string;
 };
 
 type ConnectParams =
@@ -115,11 +118,13 @@ export function useSocket(defaultServerUrl: string) {
   const [roster, setRoster] = useState<Roster>({});
   const [lobby, setLobby] = useState<RoomLobbyState | null>(null);
   const [token, setToken] = useState<RejoinToken | null>(() => readToken());
+  const [joinStatus, setJoinStatus] = useState<JoinStatus>('idle');
 
   const socketRef = useRef<Socket | null>(null);
   const joinRef = useRef<RejoinToken | null>(token);
   const attemptedAutoJoinRef = useRef(false);
   const reconnectingRef = useRef(false);
+  const joinTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     joinRef.current = token;
@@ -139,6 +144,9 @@ export function useSocket(defaultServerUrl: string) {
       const join = joinRef.current;
       if (!socket || !join) return;
       const payload: Record<string, unknown> = { roomId: join.roomId, name: join.name };
+      if (join.sessionKey) {
+        payload.sessionKey = join.sessionKey;
+      }
       let message: string;
       if (join.role === 'spectator') {
         payload.role = 'spectator';
@@ -171,6 +179,12 @@ export function useSocket(defaultServerUrl: string) {
             : `Joining room ${join.roomId} as seat ${join.seat}`;
       }
       socket.emit('join', payload);
+      setJoinStatus('joining');
+      if (joinTimeoutRef.current) window.clearTimeout(joinTimeoutRef.current);
+      joinTimeoutRef.current = window.setTimeout(() => {
+        setJoinStatus('join_failed');
+        setError('We could not confirm your room join in time. Please retry.');
+      }, 7000);
       appendLog({ type: 'system', text: message, when: Date.now(), actor: SYSTEM_ACTOR });
     },
     [appendLog],
@@ -198,6 +212,7 @@ export function useSocket(defaultServerUrl: string) {
         profileId: role === 'player' ? params.profileId : undefined,
         seat: role === 'player' ? params.seat : undefined,
         followSeat: role === 'spectator' ? params.followSeat : undefined,
+        sessionKey: token?.sessionKey ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       };
 
       joinRef.current = join;
@@ -208,6 +223,7 @@ export function useSocket(defaultServerUrl: string) {
       resetState();
       setError(null);
       setStatus('connecting');
+      setJoinStatus('idle');
 
       const socket = io(effectiveServer, {
         autoConnect: false,
@@ -239,6 +255,7 @@ export function useSocket(defaultServerUrl: string) {
         setStatus('disconnected');
         setSnapshot(null);
         reconnectingRef.current = false;
+        setJoinStatus('idle');
         if (reason !== 'io client disconnect') {
           appendLog({ type: 'system', text: 'Disconnected from server', when: Date.now(), actor: SYSTEM_ACTOR });
         }
@@ -262,6 +279,11 @@ export function useSocket(defaultServerUrl: string) {
           }
         }
         setSnapshot(data ?? null);
+        setJoinStatus('joined');
+        if (joinTimeoutRef.current) {
+          window.clearTimeout(joinTimeoutRef.current);
+          joinTimeoutRef.current = null;
+        }
       });
 
       socket.on('roster', (data: Roster) => {
@@ -274,6 +296,27 @@ export function useSocket(defaultServerUrl: string) {
 
       socket.on('errorMessage', (message: string) => {
         setError(message);
+        if (joinStatus === 'joining') {
+          setJoinStatus('join_failed');
+        }
+      });
+
+      socket.on('joinAccepted', () => {
+        if (joinTimeoutRef.current) {
+          window.clearTimeout(joinTimeoutRef.current);
+          joinTimeoutRef.current = null;
+        }
+        setJoinStatus('joined');
+      });
+
+      socket.on('joinRejected', (payload: { message: string; retryAfterMs?: number }) => {
+        if (joinTimeoutRef.current) {
+          window.clearTimeout(joinTimeoutRef.current);
+          joinTimeoutRef.current = null;
+        }
+        const suffix = payload.retryAfterMs ? ` Retry in ${Math.ceil(payload.retryAfterMs / 1000)}s.` : '';
+        setError(`${payload.message}${suffix}`);
+        setJoinStatus('join_failed');
       });
 
       socket.on('log', (entry: ConsoleEntry) => {
@@ -312,7 +355,7 @@ export function useSocket(defaultServerUrl: string) {
 
       socket.connect();
     },
-    [appendChat, appendLog, defaultServerUrl, emitJoin, resetState],
+    [appendChat, appendLog, defaultServerUrl, emitJoin, joinStatus, resetState, token?.sessionKey],
   );
 
   const disconnect = useCallback(() => {
@@ -324,6 +367,7 @@ export function useSocket(defaultServerUrl: string) {
     setSnapshot(null);
     setRoster({});
     setLobby(null);
+    setJoinStatus('idle');
   }, []);
 
   const emitAction = useCallback(
@@ -473,5 +517,7 @@ export function useSocket(defaultServerUrl: string) {
     token,
     clearToken,
     defaultServer: effectiveServerUrl,
+    joinStatus,
+    joinAckEnabled: ENABLE_JOIN_ACK_PROTOCOL,
   } as const;
 }

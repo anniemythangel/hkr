@@ -24,12 +24,31 @@ import type { GameState } from '@hooker/engine';
 import { createStatsStore, hasMixedOpposingHonors, type PlayerStatsStore } from './statsStore.js';
 import { getBlacklistedNameFieldErrors, getJoinNameValidationError } from './playerNameValidation.js';
 import { manualMatchInsertSchema, validateManualAuthorization } from './manualMatch.js';
+import { RoomStore } from './roomStore.js';
+import {
+  claimSeat,
+  ensureSeatMap,
+  enterGrace,
+  reclaimSeat,
+  releaseAllSeats,
+  releaseSeat,
+  type RoomSeatMap,
+  type SeatClaim,
+} from './roomSeats.js';
 
 const port = Number(process.env.PORT ?? 3001);
 const ENABLE_PLAYER_STATS = parseBooleanFlag(process.env.ENABLE_PLAYER_STATS, false);
 const TURSO_DATABASE_URL = process.env.TURSO_DATABASE_URL;
 const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
 const STATS_MANUAL_TOKEN = process.env.STATS_MANUAL_TOKEN;
+const ENABLE_RECONNECT_GRACE = parseBooleanFlag(process.env.ENABLE_RECONNECT_GRACE, false);
+const ENABLE_JOIN_ACK_PROTOCOL = parseBooleanFlag(process.env.ENABLE_JOIN_ACK_PROTOCOL, false);
+const ENABLE_ROOM_CHECKPOINTS = parseBooleanFlag(process.env.ENABLE_ROOM_CHECKPOINTS, false);
+const ENABLE_ADMIN_SEAT_RELEASE = parseBooleanFlag(process.env.ENABLE_ADMIN_SEAT_RELEASE, false);
+const ENABLE_HIDDEN_ADMIN_ROUTE = parseBooleanFlag(process.env.ENABLE_HIDDEN_ADMIN_ROUTE, false);
+const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN;
+const RECONNECT_GRACE_MS = Math.min(59_000, Number.parseInt(process.env.RECONNECT_GRACE_MS ?? '45000', 10) || 45_000);
+const ROOM_STORE_TTL_MS = Number.parseInt(process.env.ROOM_STORE_TTL_MS ?? `${1000 * 60 * 60 * 12}`, 10) || 1000 * 60 * 60 * 12;
 
 let statsStore: PlayerStatsStore | null = null;
 
@@ -128,6 +147,40 @@ const httpServer = createServer((req, res) => {
         );
     });
 
+    return;
+  }
+
+  const adminReleaseSeatMatch = requestUrl.pathname.match(/^\/admin\/rooms\/([^/]+)\/seats\/([^/]+)\/release$/);
+  if (ENABLE_ADMIN_SEAT_RELEASE && req.method === 'POST' && adminReleaseSeatMatch) {
+    if (!ADMIN_API_TOKEN || req.headers.authorization !== `Bearer ${ADMIN_API_TOKEN}`) {
+      setCorsHeaders();
+      res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Unauthorized' }));
+      return;
+    }
+    const roomId = decodeURIComponent(adminReleaseSeatMatch[1]);
+    const seat = decodeURIComponent(adminReleaseSeatMatch[2]) as PlayerId;
+    if (!PLAYERS.includes(seat)) {
+      setCorsHeaders();
+      res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Invalid seat' }));
+      return;
+    }
+    forceReleaseSeat(roomId, seat, 'admin');
+    setCorsHeaders();
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  const adminReleaseAllMatch = requestUrl.pathname.match(/^\/admin\/rooms\/([^/]+)\/seats\/release-all$/);
+  if (ENABLE_ADMIN_SEAT_RELEASE && req.method === 'POST' && adminReleaseAllMatch) {
+    if (!ADMIN_API_TOKEN || req.headers.authorization !== `Bearer ${ADMIN_API_TOKEN}`) {
+      setCorsHeaders();
+      res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Unauthorized' }));
+      return;
+    }
+    const roomId = decodeURIComponent(adminReleaseAllMatch[1]);
+    forceReleaseAllSeats(roomId, 'admin');
+    setCorsHeaders();
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true }));
     return;
   }
 
@@ -372,20 +425,41 @@ type RosterPayload = Partial<Record<PlayerId, { name: string; ready: boolean; pr
 const roomState = new Map<string, GameState>();
 const roomLogs = new Map<string, LogEntry[]>();
 const roomChats = new Map<string, ChatEntry[]>();
-const roomRosters = new Map<string, Map<PlayerId, { name: string; socketId: string; ready: boolean; profileId?: string }>>();
+const roomSeats = new Map<string, RoomSeatMap>();
 const roomSpectators = new Map<string, Map<string, { followSeat: PlayerId }>>();
+const roomStore = new RoomStore(process.env.ROOM_STORE_DIR ?? '.room-checkpoints', ROOM_STORE_TTL_MS);
 
 const MAX_SPECTATORS_PER_ROOM = 5;
 
 const SYSTEM_ACTOR: ActorInfo = { seat: null, name: 'System' };
 
-function ensureRoster(roomId: string) {
-  let roster = roomRosters.get(roomId);
-  if (!roster) {
-    roster = new Map();
-    roomRosters.set(roomId, roster);
+function claimantKeyFor(profileId: string | undefined, name: string, sessionKey: string | undefined) {
+  return `${profileId ?? 'anon'}::${name.trim().toLowerCase()}::${sessionKey ?? 'sessionless'}`;
+}
+
+function emitJoinRejected(
+  socket: any,
+  payload: { code: JoinRejectCode; message: string; retryable?: boolean; retryAfterMs?: number },
+) {
+  if (ENABLE_JOIN_ACK_PROTOCOL) {
+    socket.emit('joinRejected', payload);
   }
-  return roster;
+  socket.emit('errorMessage', payload.message);
+}
+
+function emitJoinAccepted(socket: any, payload: Record<string, unknown>) {
+  if (ENABLE_JOIN_ACK_PROTOCOL) {
+    socket.emit('joinAccepted', payload);
+  }
+}
+
+function seatGraceRemaining(entry: SeatClaim): number | undefined {
+  if (entry.state !== 'claimed_grace' || !entry.graceExpiresAt) return undefined;
+  return Math.max(0, entry.graceExpiresAt - Date.now());
+}
+
+function ensureRoster(roomId: string) {
+  return ensureSeatMap(roomSeats, roomId, PLAYERS);
 }
 
 function ensureSpectators(roomId: string) {
@@ -413,7 +487,7 @@ function getActorInfo(roomId: string, seat: PlayerId | null | undefined): ActorI
   if (!seat) {
     return SYSTEM_ACTOR;
   }
-  const roster = roomRosters.get(roomId);
+  const roster = roomSeats.get(roomId);
   const name = roster?.get(seat)?.name?.trim();
   return {
     seat,
@@ -438,6 +512,7 @@ const joinSchema = z
     role: z.enum(['player', 'spectator']).optional(),
     player: playerIdSchema.optional(),
     followSeat: playerIdSchema.optional(),
+    sessionKey: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     const role: ParticipantRole = value.role ?? 'player';
@@ -495,7 +570,15 @@ type SocketData = {
   role?: ParticipantRole;
   followSeat?: PlayerId;
   profileId?: string;
+  sessionKey?: string;
 };
+
+type JoinRejectCode =
+  | 'seat_taken_active'
+  | 'seat_taken_grace'
+  | 'invalid_join_payload'
+  | 'spectator_limit_reached'
+  | 'room_unavailable';
 
 const roomMatchIds = new Map<string, string>();
 
@@ -505,11 +588,11 @@ io.on('connection', (socket) => {
   socket.on('join', async (raw) => {
     const parse = joinSchema.safeParse(raw);
     if (!parse.success) {
-      socket.emit('errorMessage', parse.error.message);
+      emitJoinRejected(socket, { code: 'invalid_join_payload', message: parse.error.message, retryable: false });
       return;
     }
 
-    const { roomId, name, profileId } = parse.data;
+    const { roomId, name, profileId, sessionKey } = parse.data;
     const role: ParticipantRole = parse.data.role ?? 'player';
     const nameValidationError = role === 'player' ? getJoinNameValidationError(name) : null;
     if (nameValidationError) {
@@ -518,7 +601,7 @@ io.on('connection', (socket) => {
         field: nameValidationError.field,
         message: nameValidationError.message,
       });
-      socket.emit('errorMessage', nameValidationError.message);
+      emitJoinRejected(socket, { code: 'invalid_join_payload', message: nameValidationError.message, retryable: false });
       return;
     }
     let resolvedProfileId: string | undefined = profileId;
@@ -533,28 +616,50 @@ io.on('connection', (socket) => {
     socket.data.name = name;
     socket.data.role = role;
     socket.data.profileId = resolvedProfileId;
+    socket.data.sessionKey = sessionKey;
     socket.data.player = undefined;
     socket.data.followSeat = undefined;
 
     if (role === 'player') {
       const player = (parse.data.player ?? undefined) as PlayerId | undefined;
       if (!player) {
-        socket.emit('errorMessage', 'Player seat is required.');
+        emitJoinRejected(socket, { code: 'invalid_join_payload', message: 'Player seat is required.', retryable: false });
         return;
       }
       socket.data.player = player;
 
       const roster = ensureRoster(roomId);
       const existing = roster.get(player);
-      if (existing && existing.socketId !== socket.id) {
-        socket.emit('errorMessage', 'That seat is already taken.');
+      if (!existing) {
+        emitJoinRejected(socket, { code: 'room_unavailable', message: 'Room unavailable', retryable: true });
+        return;
+      }
+      const claimantKey = claimantKeyFor(resolvedProfileId, name, sessionKey);
+      if (existing.state === 'claimed_active' && existing.socketId !== socket.id && existing.claimantKey !== claimantKey) {
+        emitJoinRejected(socket, { code: 'seat_taken_active', message: 'That seat is already taken.', retryable: true });
+        return;
+      }
+      if (existing.state === 'claimed_grace' && existing.claimantKey !== claimantKey) {
+        emitJoinRejected(socket, {
+          code: 'seat_taken_grace',
+          message: 'We’re holding this seat briefly so the disconnected player can return.',
+          retryable: true,
+          retryAfterMs: seatGraceRemaining(existing),
+        });
         return;
       }
 
       socket.join(roomId);
 
-      const readyState = roomState.has(roomId) ? existing?.ready ?? false : false;
-      roster.set(player, { name, socketId: socket.id, ready: readyState, profileId: resolvedProfileId });
+      const readyState = roomState.has(roomId) ? existing.ready : false;
+      if (existing.state === 'claimed_grace' && existing.claimantKey === claimantKey) {
+        reclaimSeat(existing, socket.id);
+      } else {
+        claimSeat(existing, { claimantKey, name, socketId: socket.id, ready: readyState, profileId: resolvedProfileId });
+      }
+      existing.name = name;
+      existing.profileId = resolvedProfileId;
+      void persistRoomCheckpoint(roomId);
       emitRoster(roomId);
       emitLobbyState(roomId);
 
@@ -564,11 +669,12 @@ io.on('connection', (socket) => {
       } else {
         socket.emit('snapshot', null);
       }
+      emitJoinAccepted(socket, { roomId, role, seat: player, lobbyStatus: getLobbyPayload(roomId).status });
     } else {
       const followSeat = (parse.data.followSeat ?? defaultFollowSeat(roomId)) as PlayerId;
       const spectators = ensureSpectators(roomId);
       if (!spectators.has(socket.id) && spectators.size >= MAX_SPECTATORS_PER_ROOM) {
-        socket.emit('errorMessage', 'Spectator limit reached for this room.');
+        emitJoinRejected(socket, { code: 'spectator_limit_reached', message: 'Spectator limit reached for this room.', retryable: true });
         return;
       }
 
@@ -585,6 +691,7 @@ io.on('connection', (socket) => {
       }
       socket.emit('roster', getRosterPayload(roomId));
       socket.emit('lobby', getLobbyPayload(roomId));
+      emitJoinAccepted(socket, { roomId, role, followSeat, lobbyStatus: getLobbyPayload(roomId).status });
     }
 
     const logs = roomLogs.get(roomId) ?? [];
@@ -747,15 +854,17 @@ io.on('connection', (socket) => {
 
     const roomId = socket.data.roomId;
     const seat = socket.data.player;
-    const roster = roomRosters.get(roomId);
+    const roster = roomSeats.get(roomId);
     if (!roster) return;
     const entry = roster.get(seat);
     if (!entry) return;
+    if (entry.state !== 'claimed_active') return;
     if (roomState.has(roomId)) {
       return;
     }
 
     entry.ready = data.data.ready;
+    void persistRoomCheckpoint(roomId);
     emitRoster(roomId);
     emitLobbyState(roomId);
     ensureMatchStarted(roomId);
@@ -793,19 +902,91 @@ io.on('connection', (socket) => {
       return;
     }
     if (!player) return;
-    const roster = roomRosters.get(roomId);
+    const roster = roomSeats.get(roomId);
     if (!roster) return;
     const entry = roster.get(player);
     if (entry && entry.socketId === socket.id) {
-      roster.delete(player);
-      if (roster.size === 0) {
-        roomRosters.delete(roomId);
+      if (ENABLE_RECONNECT_GRACE) {
+        const expires = Date.now() + RECONNECT_GRACE_MS;
+        const timer = setTimeout(() => {
+          const seats = roomSeats.get(roomId);
+          const seatEntry = seats?.get(player);
+          if (!seatEntry) return;
+          if (seatEntry.state === 'claimed_grace' && (seatEntry.graceExpiresAt ?? 0) <= Date.now()) {
+            releaseSeat(seatEntry);
+            void persistRoomCheckpoint(roomId);
+            emitRoster(roomId);
+            emitLobbyState(roomId);
+          }
+        }, RECONNECT_GRACE_MS + 10);
+        enterGrace(entry, expires, timer);
+      } else {
+        releaseSeat(entry);
       }
+      void persistRoomCheckpoint(roomId);
       emitRoster(roomId);
       emitLobbyState(roomId);
     }
   });
 });
+
+async function persistRoomCheckpoint(roomId: string) {
+  if (!ENABLE_ROOM_CHECKPOINTS) return;
+  const roster = roomSeats.get(roomId) ?? ensureRoster(roomId);
+  const seats = PLAYERS.reduce((acc, seat) => {
+    const entry = roster.get(seat);
+    acc[seat] = {
+      state: entry?.state ?? 'open',
+      claimantKey: entry?.claimantKey ?? null,
+      name: entry?.name ?? null,
+      profileId: entry?.profileId,
+      ready: entry?.ready ?? false,
+      graceExpiresAt: entry?.graceExpiresAt ?? null,
+    };
+    return acc;
+  }, {} as any);
+  await roomStore.save({
+    roomId,
+    updatedAt: Date.now(),
+    gameState: roomState.get(roomId) ?? null,
+    seats,
+  });
+}
+
+function forceReleaseSeat(roomId: string, seat: PlayerId, actor: string) {
+  const roster = roomSeats.get(roomId);
+  const entry = roster?.get(seat);
+  if (!entry) return;
+  if (entry.socketId) {
+    const s = io.sockets.sockets.get(entry.socketId);
+    s?.disconnect(true);
+  }
+  releaseSeat(entry);
+  console.info(`[admin-seat-release] actor=${actor} room=${roomId} seat=${seat}`);
+  void persistRoomCheckpoint(roomId);
+  emitRoster(roomId);
+  emitLobbyState(roomId);
+  const state = roomState.get(roomId);
+  if (state) broadcastSnapshot(roomId, state);
+}
+
+function forceReleaseAllSeats(roomId: string, actor: string) {
+  const roster = roomSeats.get(roomId);
+  if (!roster) return;
+  for (const seat of PLAYERS) {
+    const entry = roster.get(seat);
+    if (entry?.socketId) {
+      io.sockets.sockets.get(entry.socketId)?.disconnect(true);
+    }
+  }
+  releaseAllSeats(roster);
+  console.info(`[admin-seat-release-all] actor=${actor} room=${roomId}`);
+  void persistRoomCheckpoint(roomId);
+  emitRoster(roomId);
+  emitLobbyState(roomId);
+  const state = roomState.get(roomId);
+  if (state) broadcastSnapshot(roomId, state);
+}
 
 function autoAdvance(state: GameState, roomId: string): GameState {
   let current = state;
@@ -836,7 +1017,7 @@ function act(
   const result = fn(previous);
   if (!result.ok) {
     if (options.actPlayer) {
-      const socket = io.sockets.sockets.get(roomRosters.get(roomId)?.get(options.actPlayer)?.socketId ?? '');
+      const socket = io.sockets.sockets.get(roomSeats.get(roomId)?.get(options.actPlayer)?.socketId ?? '');
       if (socket) {
         socket.emit('errorMessage', result.error);
       }
@@ -852,6 +1033,7 @@ function act(
 
   const advanced = autoAdvance(result.state, roomId);
   roomState.set(roomId, advanced);
+  void persistRoomCheckpoint(roomId);
   broadcastSnapshot(roomId, advanced);
 
   const logs = collectLogs(roomId, previous, result.state, advanced, log ?? undefined);
@@ -866,12 +1048,12 @@ function ensureMatchStarted(roomId: string) {
   if (roomState.has(roomId)) {
     return;
   }
-  const roster = roomRosters.get(roomId);
+  const roster = roomSeats.get(roomId);
   if (!roster) {
     return;
   }
 
-  const allPresent = PLAYERS.every((seat) => roster.has(seat));
+  const allPresent = PLAYERS.every((seat) => roster.get(seat)?.state === 'claimed_active');
   if (!allPresent) {
     return;
   }
@@ -884,6 +1066,7 @@ function ensureMatchStarted(roomId: string) {
   const state = autoAdvance(createMatch(), roomId);
   roomState.set(roomId, state);
   roomMatchIds.set(roomId, createMatchFingerprint(roomId, state));
+  void persistRoomCheckpoint(roomId);
   emitLobbyState(roomId);
   emitRoster(roomId);
   broadcastSnapshot(roomId, state);
@@ -896,7 +1079,7 @@ function ensureMatchStarted(roomId: string) {
 }
 
 function resetMatch(roomId: string, actor: ActorInfo = SYSTEM_ACTOR) {
-  const roster = roomRosters.get(roomId);
+  const roster = roomSeats.get(roomId);
   if (roster) {
     for (const info of roster.values()) {
       info.ready = false;
@@ -911,6 +1094,7 @@ function resetMatch(roomId: string, actor: ActorInfo = SYSTEM_ACTOR) {
   const newState = autoAdvance(createMatch(), roomId);
   roomState.set(roomId, newState);
   roomMatchIds.set(roomId, createMatchFingerprint(roomId, newState));
+  void persistRoomCheckpoint(roomId);
 
   roomLogs.set(roomId, []);
 
@@ -1034,7 +1218,7 @@ function collectLogs(
         const matchId = roomMatchIds.get(roomId) ?? createMatchFingerprint(roomId, advanced);
         setTimeout(() => {
           try {
-            const roster = roomRosters.get(roomId);
+            const roster = roomSeats.get(roomId);
             const honorsBySeat = {
               A: classifyMatchHonorOutcome(advanced.playerGameWins.A, totalGames),
               B: classifyMatchHonorOutcome(advanced.playerGameWins.B, totalGames),
@@ -1133,13 +1317,14 @@ function emitLobbyState(roomId: string) {
 }
 
 function getRosterPayload(roomId: string): RosterPayload {
-  const roster = roomRosters.get(roomId);
+  const roster = roomSeats.get(roomId);
   if (!roster) {
     return {};
   }
   const result: RosterPayload = {};
   for (const [seat, info] of roster.entries()) {
-    result[seat] = { name: info.name, ready: info.ready, profileId: info.profileId };
+    if (info.state === 'open') continue;
+    result[seat] = { name: info.name ?? seat, ready: info.ready, profileId: info.profileId };
   }
   return result;
 }
@@ -1150,12 +1335,22 @@ function getLobbyPayload(roomId: string): RoomLobbyState {
     return acc;
   }, {} as RoomLobbyState['seats']);
 
-  const roster = roomRosters.get(roomId);
+  const roster = roomSeats.get(roomId);
   if (roster) {
     for (const seat of PLAYERS) {
       const info = roster.get(seat);
       if (info) {
-        seats[seat] = { name: info.name, ready: info.ready, present: true };
+        if (info.state === 'claimed_active') {
+          seats[seat] = { name: info.name, ready: info.ready, present: true };
+        } else if (info.state === 'claimed_grace') {
+          seats[seat] = {
+            name: info.name,
+            ready: info.ready,
+            present: false,
+            graceRemainingMs: seatGraceRemaining(info),
+            graceHeldByName: info.name,
+          };
+        }
       }
     }
   }
@@ -1238,9 +1433,51 @@ function createMatchFingerprint(roomId: string, state: GameState): string {
 
 async function bootstrap() {
   statsStore = await initStatsStore();
+  if (ENABLE_ROOM_CHECKPOINTS) {
+    const restored = await roomStore.loadAll();
+    for (const room of restored) {
+      const roster = ensureRoster(room.roomId);
+      for (const seat of PLAYERS) {
+        const saved = room.seats[seat];
+        const target = roster.get(seat);
+        if (!target) continue;
+        if (saved.state === 'open') {
+          releaseSeat(target);
+          continue;
+        }
+        claimSeat(target, {
+          claimantKey: saved.claimantKey ?? `recovered-${seat}`,
+          name: saved.name ?? seat,
+          socketId: '',
+          profileId: saved.profileId,
+          ready: saved.ready,
+        });
+        target.socketId = null;
+        if (saved.state === 'claimed_grace' && ENABLE_RECONNECT_GRACE && (saved.graceExpiresAt ?? 0) > Date.now()) {
+          enterGrace(target, saved.graceExpiresAt ?? Date.now(), setTimeout(() => forceReleaseSeat(room.roomId, seat, 'grace-expiry'), Math.max(0, (saved.graceExpiresAt ?? 0) - Date.now())));
+        } else if (saved.state === 'claimed_grace') {
+          releaseSeat(target);
+        }
+      }
+      if (room.gameState) {
+        roomState.set(room.roomId, room.gameState);
+      }
+    }
+  }
+  setInterval(() => {
+    if (!ENABLE_RECONNECT_GRACE) return;
+    for (const [roomId, roster] of roomSeats.entries()) {
+      for (const [seat, entry] of roster.entries()) {
+        if (entry.state === 'claimed_grace' && (entry.graceExpiresAt ?? 0) <= Date.now()) {
+          forceReleaseSeat(roomId, seat, 'grace-sweep');
+        }
+      }
+    }
+  }, 5_000).unref();
 
   httpServer.listen(port, () => {
     console.log(`Hooker server listening on port ${port}`);
+    console.log(`Hidden admin route enabled: ${ENABLE_HIDDEN_ADMIN_ROUTE}`);
   });
 }
 

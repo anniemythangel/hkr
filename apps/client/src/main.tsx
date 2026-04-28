@@ -7,9 +7,10 @@ import ResponsiveTestPage from './pages/ResponsiveTest'
 import StatsPage from './pages/Stats'
 import StatsManualPage from './pages/StatsManual'
 import CalculatorPage from './pages/Calculator'
+import AdminSeatToolsPage from './pages/AdminSeatTools'
 import './styles.css'
 import './responsive.css'
-import { ENABLE_STATS_UI, syncResponsiveModeClass } from './utils/featureFlags'
+import { ADMIN_TOOLS_PATH, ENABLE_HIDDEN_ADMIN_ROUTE, ENABLE_STATS_UI, syncResponsiveModeClass } from './utils/featureFlags'
 
 syncResponsiveModeClass()
 
@@ -26,6 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         ) : null}
         {ENABLE_STATS_UI ? <Route path="/stats" element={<StatsPage />} /> : null}
         {ENABLE_STATS_UI ? <Route path="/stats/manual" element={<StatsManualPage />} /> : null}
+        {ENABLE_HIDDEN_ADMIN_ROUTE ? <Route path={ADMIN_TOOLS_PATH} element={<AdminSeatToolsPage />} /> : null}
         <Route path="/calculator" element={<CalculatorPage />} />
         {/* fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
