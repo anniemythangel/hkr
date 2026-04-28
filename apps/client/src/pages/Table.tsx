@@ -14,7 +14,7 @@ export default function TablePage() {
   const {
     status, snapshot, logs, chatMessages,
     connect, emitAction, sendChat, setReady, setFollowSeat,
-    roster, lobby, token, defaultServer
+    roster, lobby, token, defaultServer, joinStatus
   } = useSocket(import.meta.env.VITE_WS_URL ?? 'http://localhost:3001')
   const nav = useNavigate()
   const participantRole: ParticipantRole = token?.role ?? 'player'
@@ -250,7 +250,7 @@ export default function TablePage() {
         ) : (
           <section className="panel placeholder-panel waiting-panel">
             {status !== 'connected' ? (
-              <p>Reconnecting…</p>
+              <p>{joinStatus === 'joining' ? 'Joining room…' : 'Reconnecting…'}</p>
           ) : lobby?.matchStarted ? (
             <>
               <h2>Loading match…</h2>
@@ -267,7 +267,9 @@ export default function TablePage() {
                     const isViewing = isSpectator && viewerSeat === seat
                     const name = seatState?.name ?? `Seat ${seat}`
                     const seatStatus = !seatState?.present
-                      ? 'Open seat'
+                      ? seatState?.graceRemainingMs
+                        ? `Held (${Math.ceil(seatState.graceRemainingMs / 1000)}s)`
+                        : 'Open seat'
                       : seatState.ready
                         ? 'Ready'
                         : 'Not ready'
@@ -297,9 +299,12 @@ export default function TablePage() {
                 ) : (
                   <p className="waiting-note">Everyone must join and click ready before the game begins.</p>
                 )}
+                {PLAYERS.some((seat) => (lobby.seats[seat]?.graceRemainingMs ?? 0) > 0) ? (
+                  <p className="waiting-note">We’re holding this seat briefly so the disconnected player can return.</p>
+                ) : null}
               </>
             ) : (
-              <p>Connecting to lobby…</p>
+              <p>{joinStatus === 'join_failed' ? 'Join failed. Please retry from lobby.' : 'Connecting to lobby…'}</p>
             )}
           </section>
         )}
