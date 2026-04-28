@@ -128,6 +128,8 @@ export interface LobbySeatState {
   name: string | null;
   ready: boolean;
   present: boolean;
+  graceRemainingMs?: number;
+  graceHeldByName?: string | null;
 }
 
 export interface RoomLobbyState {
