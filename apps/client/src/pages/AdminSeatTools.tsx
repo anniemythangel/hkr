@@ -16,7 +16,14 @@ export default function AdminSeatTools() {
       method: 'POST',
     })
     const text = await response.text()
-    setResult(`${response.status}: ${text}`)
+    let message = text
+    try {
+      const parsed = JSON.parse(text) as { error?: string }
+      if (!response.ok && parsed.error) message = parsed.error
+    } catch {
+      // Keep raw response text for non-JSON replies.
+    }
+    setResult(`${response.status}: ${message}`)
   }
 
   const handleSeat = async (e: FormEvent) => {

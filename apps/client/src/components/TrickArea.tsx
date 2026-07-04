@@ -189,8 +189,7 @@ export function TrickArea({
               key={seat}
               className={`trick-ring-slot trick-ring-slot-${position}${
                 occupied ? ' trick-ring-slot-filled' : ''
-              }${collecting ? ' trick-ring-slot-collecting' : ''}
-              }`}
+              }${collecting ? ' trick-ring-slot-collecting' : ''}`}
               role={occupied ? 'listitem' : undefined}
               aria-label={occupied ? `${name} played ${cardLabel}` : `${name} has not played yet`}
             >

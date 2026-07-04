@@ -32,6 +32,8 @@ import {
   reclaimSeat,
   releaseAllSeats,
   releaseSeat,
+  restoreCheckpointSeat,
+  shouldReleaseSeatOnSweep,
   type RoomSeatMap,
   type SeatClaim,
 } from './roomSeats.js';
@@ -48,6 +50,9 @@ const ENABLE_ADMIN_SEAT_RELEASE = parseBooleanFlag(process.env.ENABLE_ADMIN_SEAT
 const ENABLE_HIDDEN_ADMIN_ROUTE = parseBooleanFlag(process.env.ENABLE_HIDDEN_ADMIN_ROUTE, true);
 const RECONNECT_GRACE_MS = Math.min(59_000, Number.parseInt(process.env.RECONNECT_GRACE_MS ?? '45000', 10) || 45_000);
 const ROOM_STORE_TTL_MS = Number.parseInt(process.env.ROOM_STORE_TTL_MS ?? `${1000 * 60 * 60 * 12}`, 10) || 1000 * 60 * 60 * 12;
+// Must stay >= client TRICK_LINGER_DURATION (3000) + COLLECT_ANIMATION_DURATION (600).
+const HAND_SCORE_LINGER_MS = 4_000;
+const ADMIN_SEAT_DENY_MS = 60_000;
 
 let statsStore: PlayerStatsStore | null = null;
 
@@ -158,8 +163,12 @@ const httpServer = createServer((req, res) => {
       res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Invalid seat' }));
       return;
     }
-    forceReleaseSeat(roomId, seat, 'admin');
+    const released = forceReleaseSeat(roomId, seat, 'admin');
     setCorsHeaders();
+    if (!released) {
+      res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'room not found' }));
+      return;
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true }));
     return;
   }
@@ -167,8 +176,12 @@ const httpServer = createServer((req, res) => {
   const adminReleaseAllMatch = requestUrl.pathname.match(/^\/admin\/rooms\/([^/]+)\/seats\/release-all$/);
   if (ENABLE_ADMIN_SEAT_RELEASE && req.method === 'POST' && adminReleaseAllMatch) {
     const roomId = decodeURIComponent(adminReleaseAllMatch[1]);
-    forceReleaseAllSeats(roomId, 'admin');
+    const released = forceReleaseAllSeats(roomId, 'admin');
     setCorsHeaders();
+    if (!released) {
+      res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'room not found' }));
+      return;
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true }));
     return;
   }
@@ -417,6 +430,8 @@ const roomChats = new Map<string, ChatEntry[]>();
 const roomSeats = new Map<string, RoomSeatMap>();
 const roomSpectators = new Map<string, Map<string, { followSeat: PlayerId }>>();
 const roomStore = new RoomStore(process.env.ROOM_STORE_DIR ?? '.room-checkpoints', ROOM_STORE_TTL_MS);
+const pendingHandScoreAdvance = new Map<string, NodeJS.Timeout>();
+const adminSeatDeny = new Map<string, number>();
 
 const MAX_SPECTATORS_PER_ROOM = 5;
 
@@ -624,6 +639,14 @@ io.on('connection', (socket) => {
         return;
       }
       const claimantKey = claimantKeyFor(resolvedProfileId, name, sessionKey);
+      if (isAdminDenied(roomId, claimantKey, resolvedProfileId)) {
+        emitJoinRejected(socket, {
+          code: 'seat_taken_active',
+          message: 'This seat was just cleared by an admin — rejoin from the lobby in a minute.',
+          retryable: true,
+        });
+        return;
+      }
       if (existing.state === 'claimed_active' && existing.socketId !== socket.id && existing.claimantKey !== claimantKey) {
         emitJoinRejected(socket, { code: 'seat_taken_active', message: 'That seat is already taken.', retryable: true });
         return;
@@ -921,33 +944,60 @@ io.on('connection', (socket) => {
 
 async function persistRoomCheckpoint(roomId: string) {
   if (!ENABLE_ROOM_CHECKPOINTS) return;
-  const roster = roomSeats.get(roomId) ?? ensureRoster(roomId);
-  const seats = PLAYERS.reduce((acc, seat) => {
-    const entry = roster.get(seat);
-    acc[seat] = {
-      state: entry?.state ?? 'open',
-      claimantKey: entry?.claimantKey ?? null,
-      name: entry?.name ?? null,
-      profileId: entry?.profileId,
-      ready: entry?.ready ?? false,
-      graceExpiresAt: entry?.graceExpiresAt ?? null,
-    };
-    return acc;
-  }, {} as any);
-  await roomStore.save({
-    roomId,
-    updatedAt: Date.now(),
-    gameState: roomState.get(roomId) ?? null,
-    seats,
-  });
+  try {
+    const roster = roomSeats.get(roomId) ?? ensureRoster(roomId);
+    const seats = PLAYERS.reduce((acc, seat) => {
+      const entry = roster.get(seat);
+      acc[seat] = {
+        state: entry?.state ?? 'open',
+        claimantKey: entry?.claimantKey ?? null,
+        name: entry?.name ?? null,
+        profileId: entry?.profileId,
+        ready: entry?.ready ?? false,
+        graceExpiresAt: entry?.graceExpiresAt ?? null,
+      };
+      return acc;
+    }, {} as any);
+    await roomStore.save({
+      roomId,
+      updatedAt: Date.now(),
+      gameState: roomState.get(roomId) ?? null,
+      seats,
+    });
+  } catch (error) {
+    console.error('[checkpoint]', roomId, error);
+  }
 }
 
-function forceReleaseSeat(roomId: string, seat: PlayerId, actor: string) {
+function adminDenyKey(roomId: string, claimantKey: string | null | undefined, profileId: string | undefined) {
+  return `${roomId}::${profileId ?? 'anon'}::${claimantKey ?? ''}`;
+}
+
+function recordAdminDeny(roomId: string, entry: SeatClaim) {
+  if (!entry.claimantKey) return;
+  adminSeatDeny.set(adminDenyKey(roomId, entry.claimantKey, entry.profileId), Date.now() + ADMIN_SEAT_DENY_MS);
+}
+
+function isAdminDenied(roomId: string, claimantKey: string, profileId: string | undefined) {
+  const key = adminDenyKey(roomId, claimantKey, profileId);
+  const expires = adminSeatDeny.get(key);
+  if (!expires) return false;
+  if (expires <= Date.now()) {
+    adminSeatDeny.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function forceReleaseSeat(roomId: string, seat: PlayerId, actor: string): boolean {
   const roster = roomSeats.get(roomId);
   const entry = roster?.get(seat);
-  if (!entry) return;
+  if (!roster || !entry) return false;
+  const adminInitiated = actor === 'admin';
+  if (adminInitiated) recordAdminDeny(roomId, entry);
   if (entry.socketId) {
     const s = io.sockets.sockets.get(entry.socketId);
+    if (adminInitiated) s?.emit('seatForceReleased', { roomId, seat, reason: 'admin' });
     s?.disconnect(true);
   }
   releaseSeat(entry);
@@ -957,15 +1007,21 @@ function forceReleaseSeat(roomId: string, seat: PlayerId, actor: string) {
   emitLobbyState(roomId);
   const state = roomState.get(roomId);
   if (state) broadcastSnapshot(roomId, state);
+  return true;
 }
 
-function forceReleaseAllSeats(roomId: string, actor: string) {
+function forceReleaseAllSeats(roomId: string, actor: string): boolean {
   const roster = roomSeats.get(roomId);
-  if (!roster) return;
+  if (!roster) return false;
+  const adminInitiated = actor === 'admin';
   for (const seat of PLAYERS) {
     const entry = roster.get(seat);
-    if (entry?.socketId) {
-      io.sockets.sockets.get(entry.socketId)?.disconnect(true);
+    if (!entry) continue;
+    if (adminInitiated) recordAdminDeny(roomId, entry);
+    if (entry.socketId) {
+      const s = io.sockets.sockets.get(entry.socketId);
+      if (adminInitiated) s?.emit('seatForceReleased', { roomId, seat, reason: 'admin' });
+      s?.disconnect(true);
     }
   }
   releaseAllSeats(roster);
@@ -975,6 +1031,7 @@ function forceReleaseAllSeats(roomId: string, actor: string) {
   emitLobbyState(roomId);
   const state = roomState.get(roomId);
   if (state) broadcastSnapshot(roomId, state);
+  return true;
 }
 
 function autoAdvance(state: GameState, roomId: string): GameState {
@@ -990,6 +1047,27 @@ function autoAdvance(state: GameState, roomId: string): GameState {
     }
     current = next;
   }
+}
+
+function clearPendingHandScoreAdvance(roomId: string) {
+  const timer = pendingHandScoreAdvance.get(roomId);
+  if (!timer) return;
+  clearTimeout(timer);
+  pendingHandScoreAdvance.delete(roomId);
+}
+
+function scheduleHandScoreAdvance(roomId: string) {
+  clearPendingHandScoreAdvance(roomId);
+  const timer = setTimeout(() => {
+    pendingHandScoreAdvance.delete(roomId);
+    const current = roomState.get(roomId);
+    if (!current || current.phase !== 'HandScore') return;
+    const advanced = autoAdvance(current, roomId);
+    roomState.set(roomId, advanced);
+    void persistRoomCheckpoint(roomId);
+    broadcastSnapshot(roomId, advanced);
+  }, HAND_SCORE_LINGER_MS);
+  pendingHandScoreAdvance.set(roomId, timer);
 }
 
 function act(
@@ -1017,7 +1095,15 @@ function act(
   const log = options.onSuccess?.(previous, result.state);
 
   if (previous.phase === 'TrickPlay' && result.state.phase === 'HandScore') {
+    roomState.set(roomId, result.state);
+    void persistRoomCheckpoint(roomId);
     broadcastSnapshot(roomId, result.state);
+    const logs = collectLogs(roomId, previous, result.state, result.state, log ?? undefined);
+    for (const entry of logs) {
+      emitRoomLog(roomId, entry);
+    }
+    scheduleHandScoreAdvance(roomId);
+    return;
   }
 
   const advanced = autoAdvance(result.state, roomId);
@@ -1068,6 +1154,7 @@ function ensureMatchStarted(roomId: string) {
 }
 
 function resetMatch(roomId: string, actor: ActorInfo = SYSTEM_ACTOR) {
+  clearPendingHandScoreAdvance(roomId);
   const roster = roomSeats.get(roomId);
   if (roster) {
     for (const info of roster.values()) {
@@ -1430,23 +1517,13 @@ async function bootstrap() {
         const saved = room.seats[seat];
         const target = roster.get(seat);
         if (!target) continue;
-        if (saved.state === 'open') {
-          releaseSeat(target);
-          continue;
-        }
-        claimSeat(target, {
-          claimantKey: saved.claimantKey ?? `recovered-${seat}`,
-          name: saved.name ?? seat,
-          socketId: '',
-          profileId: saved.profileId,
-          ready: saved.ready,
+        restoreCheckpointSeat(target, saved, {
+          seat,
+          reconnectGraceEnabled: ENABLE_RECONNECT_GRACE,
+          reconnectGraceMs: RECONNECT_GRACE_MS,
+          now: Date.now(),
+          createTimer: (delayMs) => setTimeout(() => forceReleaseSeat(room.roomId, seat, 'grace-expiry'), delayMs),
         });
-        target.socketId = null;
-        if (saved.state === 'claimed_grace' && ENABLE_RECONNECT_GRACE && (saved.graceExpiresAt ?? 0) > Date.now()) {
-          enterGrace(target, saved.graceExpiresAt ?? Date.now(), setTimeout(() => forceReleaseSeat(room.roomId, seat, 'grace-expiry'), Math.max(0, (saved.graceExpiresAt ?? 0) - Date.now())));
-        } else if (saved.state === 'claimed_grace') {
-          releaseSeat(target);
-        }
       }
       if (room.gameState) {
         roomState.set(room.roomId, room.gameState);
@@ -1454,10 +1531,13 @@ async function bootstrap() {
     }
   }
   setInterval(() => {
-    if (!ENABLE_RECONNECT_GRACE) return;
+    const now = Date.now();
+    for (const [key, expires] of adminSeatDeny.entries()) {
+      if (expires <= now) adminSeatDeny.delete(key);
+    }
     for (const [roomId, roster] of roomSeats.entries()) {
       for (const [seat, entry] of roster.entries()) {
-        if (entry.state === 'claimed_grace' && (entry.graceExpiresAt ?? 0) <= Date.now()) {
+        if (shouldReleaseSeatOnSweep(entry, now) && (ENABLE_RECONNECT_GRACE || entry.state === 'claimed_active')) {
           forceReleaseSeat(roomId, seat, 'grace-sweep');
         }
       }

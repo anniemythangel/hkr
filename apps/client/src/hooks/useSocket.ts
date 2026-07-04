@@ -319,6 +319,27 @@ export function useSocket(defaultServerUrl: string) {
         setJoinStatus('join_failed');
       });
 
+      socket.on('seatForceReleased', (payload: { reason?: string }) => {
+        persistToken(null);
+        joinRef.current = null;
+        attemptedAutoJoinRef.current = true;
+        setToken(null);
+        resetState();
+        setJoinStatus('join_failed');
+        setError(
+          payload.reason === 'admin'
+            ? 'This seat was just cleared by an admin — rejoin from the lobby in a minute.'
+            : 'Your seat was released.',
+        );
+        appendLog({
+          type: 'system',
+          text: 'Your seat was cleared by an admin.',
+          when: Date.now(),
+          actor: SYSTEM_ACTOR,
+        });
+        socket.disconnect();
+      });
+
       socket.on('log', (entry: ConsoleEntry) => {
         appendLog(entry);
       });
