@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
           skipWaiting: true,
           clientsClaim: true,
           navigateFallback: '/index.html',
-          globPatterns: ['**/*.{js,css,html,svg,mp3,wav}'],
+          globPatterns: ['**/*.{js,css,html,svg}'],
           navigateFallbackDenylist: [/^\/socket\.io(?:\/|$)/],
           runtimeCaching: [
             {
@@ -41,6 +41,18 @@ export default defineConfig(({ mode }) => {
                 url.pathname.startsWith('/socket.io') || (backendOrigin !== null && url.origin === backendOrigin),
               handler: 'NetworkOnly',
               method: 'POST',
+            },
+            {
+              urlPattern: ({ request, url }) =>
+                request.method === 'GET' && url.origin === self.location.origin && url.pathname.startsWith('/audio/'),
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'audio-cache',
+                expiration: {
+                  maxEntries: 20,
+                  maxAgeSeconds: 30 * 24 * 60 * 60,
+                },
+              },
             },
           ],
         },
