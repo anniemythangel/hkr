@@ -85,3 +85,39 @@ export function releaseAllSeats(map: RoomSeatMap) {
     releaseSeat(entry);
   }
 }
+
+export function shouldReleaseSeatOnSweep(entry: SeatClaim, now: number): boolean {
+  return (entry.state === 'claimed_active' && entry.socketId === null)
+    || (entry.state === 'claimed_grace' && (entry.graceExpiresAt ?? 0) <= now);
+}
+
+export function restoreCheckpointSeat(
+  entry: SeatClaim,
+  saved: { state: SeatState; claimantKey: string | null; name: string | null; profileId?: string; ready: boolean; graceExpiresAt: number | null },
+  options: { seat: PlayerId; reconnectGraceEnabled: boolean; reconnectGraceMs: number; now: number; createTimer: (delayMs: number) => NodeJS.Timeout },
+) {
+  if (saved.state === 'open') {
+    releaseSeat(entry);
+    return;
+  }
+
+  claimSeat(entry, {
+    claimantKey: saved.claimantKey ?? `recovered-${options.seat}`,
+    name: saved.name ?? options.seat,
+    socketId: '',
+    profileId: saved.profileId,
+    ready: saved.ready,
+  });
+  entry.socketId = null;
+
+  if (!options.reconnectGraceEnabled) {
+    releaseSeat(entry);
+    return;
+  }
+
+  const graceExpiresAt = Math.min(
+    Math.max(saved.graceExpiresAt ?? 0, options.now + options.reconnectGraceMs),
+    options.now + options.reconnectGraceMs,
+  );
+  enterGrace(entry, graceExpiresAt, options.createTimer(Math.max(0, graceExpiresAt - options.now)));
+}
