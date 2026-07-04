@@ -8,6 +8,7 @@ import TrickHistory from '../components/TrickHistory'
 import Scoreboard from '../components/Scoreboard'
 import { Suit, Card, PlayerId, ParticipantRole, TEAMS, GAME_ROTATION, PLAYERS } from '@hooker/shared'
 import { ENABLE_STATS_UI } from '../utils/featureFlags'
+import { useScreenWakeLock } from '../hooks/useWakeLock'
 
 export default function TablePage() {
   const { roomId: routeRoom } = useParams()
@@ -183,6 +184,8 @@ export default function TablePage() {
     status !== 'connected' || !playerSeat || !mySeatState?.present || Boolean(lobby?.matchStarted)
   const readyButtonLabel = mySeatState?.ready ? 'Cancel ready' : 'Ready up'
   const showReadyButton = Boolean(!isSpectator && playerSeat && lobby && !lobby.matchStarted)
+
+  useScreenWakeLock(Boolean(snapshot && snapshot.phase !== 'MatchOver'))
 
   return (
     <div className="page">

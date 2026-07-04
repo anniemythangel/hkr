@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Hooker app icon</title>
+  <desc id="desc">A simple original playing-card suit motif on a dark felt background.</desc>
+  <defs>
+    <radialGradient id="felt" cx="38%" cy="24%" r="78%">
+      <stop offset="0" stop-color="#0f1f1a"/>
+      <stop offset="1" stop-color="#050b0a"/>
+    </radialGradient>
+    <linearGradient id="card" x1="128" y1="72" x2="384" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff7e6"/>
+      <stop offset="1" stop-color="#d7c7a1"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#felt)"/>
+  <path d="M122 92h268c22 0 40 18 40 40v248c0 22-18 40-40 40H122c-22 0-40-18-40-40V132c0-22 18-40 40-40Z" fill="url(#card)" opacity=".96"/>
+  <path d="M122 92h268c22 0 40 18 40 40v248c0 22-18 40-40 40H122c-22 0-40-18-40-40V132c0-22 18-40 40-40Z" fill="none" stroke="#f8d36b" stroke-width="10"/>
+  <path d="M256 142c-44 46-92 86-92 140 0 39 31 71 70 71 13 0 25-4 35-10-4 28-17 50-42 68h58c-25-18-38-40-42-68 10 6 22 10 35 10 39 0 70-32 70-71 0-54-48-94-92-140Z" fill="#0b1714"/>
+  <path d="M256 161c-38 40-73 73-73 116 0 29 23 53 52 53 19 0 35-10 45-26 10 16 26 26 45 26 29 0 52-24 52-53 0-43-35-76-73-116l-24-25-24 25Z" fill="#b91c1c" opacity=".92" transform="translate(-24 0)"/>
+  <text x="124" y="164" fill="#0b1714" font-family="Georgia, serif" font-size="58" font-weight="700">H</text>
+  <text x="388" y="378" fill="#0b1714" font-family="Georgia, serif" font-size="58" font-weight="700" text-anchor="end">K</text>
+</svg>
