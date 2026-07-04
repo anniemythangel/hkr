@@ -6,3 +6,5 @@ apps/**/dist
 coverage
 .vscode
 .env
+
+apps/client/public/icons/

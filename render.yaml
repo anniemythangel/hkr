@@ -35,3 +35,5 @@ staticSites:
           envVarKey: RENDER_EXTERNAL_URL
       - key: NODE_VERSION
         value: 20
+      - key: VITE_ENABLE_RESPONSIVE
+        value: true
